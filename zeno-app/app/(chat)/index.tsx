@@ -21,6 +21,8 @@ function randomId() {
 
 const EDGE_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/chat`;
 const ACTIVE_CHAT_KEY = 'zeno-active-chat-id';
+const LAST_MODEL_KEY = 'zeno-last-model';
+const DEFAULT_MODEL_ID = 'nvidia/nemotron-3-nano-30b-a3b';
 
 export default function ChatListScreen() {
   const router = useRouter();
@@ -69,7 +71,9 @@ export default function ChatListScreen() {
   const handleNewChat = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data, error } = await supabase.from('chats').insert({ user_id: user.id, model: MODELS[0].id }).select().single();
+    let lastModel = DEFAULT_MODEL_ID;
+    try { const saved = await AsyncStorage.getItem(LAST_MODEL_KEY); if (saved) lastModel = saved; } catch {}
+    const { data, error } = await supabase.from('chats').insert({ user_id: user.id, model: lastModel }).select().single();
     if (error) return;
     setActiveChat(data); setMessages([]); setChats((prev) => [data, ...prev]); setSendError(null); setSidebarVisible(false);
   }, []);
@@ -78,6 +82,7 @@ export default function ChatListScreen() {
     if (!activeChat) return;
     setActiveChat((prev) => prev ? { ...prev, model: modelId } : null);
     await supabase.from('chats').update({ model: modelId }).eq('id', activeChat.id);
+    try { await AsyncStorage.setItem(LAST_MODEL_KEY, modelId); } catch {}
   }, [activeChat]);
 
   function handleWebModelSelect(modelId: string) {
@@ -171,7 +176,7 @@ export default function ChatListScreen() {
         <Pressable style={({ pressed }) => [s.headerBtn, pressed && { opacity: 0.7 }]} onPress={() => setSidebarVisible(true)}>
           <Menu size={24} color={colors.textPrimary} />
         </Pressable>
-        <ModelPicker selected={activeChat?.model || MODELS[0].id} onSelect={handleModelSelect} />
+        <ModelPicker selected={activeChat?.model || DEFAULT_MODEL_ID} onSelect={handleModelSelect} />
         <Pressable style={({ pressed }) => [s.headerBtn, pressed && { opacity: 0.7 }]} onPress={() => router.push('./settings')}>
           <Settings size={24} color={colors.textMuted} />
         </Pressable>
