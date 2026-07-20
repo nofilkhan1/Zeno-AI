@@ -211,6 +211,7 @@ export default function ChatListScreen() {
         onNewChat={handleNewChat}
         chats={chats}
         chatsLoading={chatsLoading}
+        activeChatId={activeChat?.id}
         onSelectChat={(chat) => {
           setActiveChat(chat);
           setSendError(null);
@@ -230,12 +231,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    paddingTop: 50,
-    backgroundColor: '#1a1a2e',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingTop: 52,
+    backgroundColor: '#0f0f1a',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a2e',
   },
   menuButton: {
-    padding: 4,
+    padding: 6,
   },
 });

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Animated, StyleSheet, Alert, TextInput, ActivityIndicator } from 'react-native';
-import { Plus, MessageSquare, X, LogOut, Trash2, Edit3 } from 'lucide-react-native';
+import { useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, FlatList, Animated, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { Plus, MessageSquare, X, LogOut } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Chat } from '../lib/types';
@@ -12,11 +12,27 @@ type Props = {
   chats?: Chat[];
   onSelectChat?: (chat: Chat) => void;
   chatsLoading?: boolean;
+  activeChatId?: string | null;
 };
 
-const SIDEBAR_WIDTH = 280;
+const SIDEBAR_WIDTH = 300;
 
-export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSelectChat, chatsLoading }: Props) {
+function formatTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSelectChat, chatsLoading, activeChatId }: Props) {
   const router = useRouter();
   const translateX = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
 
@@ -96,14 +112,14 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
           >
             <View style={styles.header}>
               <Text style={styles.headerTitle}>Zeno</Text>
-              <TouchableOpacity onPress={onClose}>
-                <X size={24} color="#8888aa" />
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <X size={20} color="#8888aa" />
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity style={styles.newChatButton} onPress={onNewChat}>
-              <Plus size={20} color="#fff" />
-              <Text style={styles.newChatText}>New Chat</Text>
+              <Plus size={18} color="#fff" />
+              <Text style={styles.newChatText}>New conversation</Text>
             </TouchableOpacity>
 
             {chatsLoading ? (
@@ -114,22 +130,31 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
               <FlatList
                 data={chats}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.chatItem}
-                    onPress={() => onSelectChat?.(item)}
-                    onLongPress={() => handleLongPress(item)}
-                  >
-                    <MessageSquare size={16} color="#8888aa" />
-                    <Text style={styles.chatItemText} numberOfLines={1}>{item.title || 'New Chat'}</Text>
-                  </TouchableOpacity>
-                )}
+                contentContainerStyle={styles.chatList}
+                renderItem={({ item }) => {
+                  const isActive = item.id === activeChatId;
+                  return (
+                    <TouchableOpacity
+                      style={[styles.chatItem, isActive && styles.chatItemActive]}
+                      onPress={() => onSelectChat?.(item)}
+                      onLongPress={() => handleLongPress(item)}
+                    >
+                      <MessageSquare size={15} color={isActive ? '#5b9aff' : '#5a5a7a'} />
+                      <View style={styles.chatItemContent}>
+                        <Text style={[styles.chatItemTitle, isActive && styles.chatItemTitleActive]} numberOfLines={1}>
+                          {item.title || 'New conversation'}
+                        </Text>
+                        <Text style={styles.chatItemTime}>{formatTime(item.updated_at)}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
               />
             )}
 
             <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
-              <LogOut size={18} color="#ff6b6b" />
-              <Text style={styles.signOutText}>Sign Out</Text>
+              <LogOut size={16} color="#ff6b6b" />
+              <Text style={styles.signOutText}>Sign out</Text>
             </TouchableOpacity>
           </Animated.View>
         </TouchableOpacity>
@@ -150,35 +175,40 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: SIDEBAR_WIDTH,
-    backgroundColor: '#1a1a2e',
-    paddingTop: 50,
+    backgroundColor: '#12121e',
+    paddingTop: 54,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a3e',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
   headerTitle: {
     color: '#f0f0f5',
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: '700',
+  },
+  closeButton: {
+    padding: 4,
   },
   newChatButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    margin: 16,
-    padding: 12,
-    backgroundColor: '#252540',
-    borderRadius: 8,
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#1e1e32',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2a2a44',
   },
   newChatText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#e0e0e5',
+    fontSize: 15,
     fontWeight: '500',
   },
   loadingContainer: {
@@ -186,29 +216,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  chatList: {
+    paddingBottom: 8,
+  },
   chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginHorizontal: 8,
+    borderRadius: 8,
   },
-  chatItemText: {
-    color: '#c0c0d0',
-    fontSize: 15,
+  chatItemActive: {
+    backgroundColor: '#1a1a30',
+  },
+  chatItemContent: {
     flex: 1,
+  },
+  chatItemTitle: {
+    color: '#8888aa',
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  chatItemTitleActive: {
+    color: '#e0e0e5',
+    fontWeight: '500',
+  },
+  chatItemTime: {
+    color: '#555',
+    fontSize: 11,
   },
   signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     borderTopWidth: 1,
-    borderTopColor: '#2a2a3e',
+    borderTopColor: '#1e1e32',
+    marginTop: 4,
   },
   signOutText: {
     color: '#ff6b6b',
-    fontSize: 15,
+    fontSize: 14,
   },
 });

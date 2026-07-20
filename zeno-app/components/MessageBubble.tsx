@@ -19,12 +19,10 @@ export default function MessageBubble({ role, content, sources }: Props) {
         </Text>
         {hasSources && (
           <View style={styles.sourcesContainer}>
-            <Text style={styles.sourcesLabel}>Sources</Text>
             {sources.map((s, i) => (
-              <TouchableOpacity key={i} onPress={() => Linking.openURL(s.url)}>
-                <Text style={styles.sourceLink} numberOfLines={1}>
-                  {i + 1}. {s.title}
-                </Text>
+              <TouchableOpacity key={i} onPress={() => Linking.openURL(s.url)} style={styles.sourceItem}>
+                <Text style={styles.sourceBullet}>{i + 1}</Text>
+                <Text style={styles.sourceLink} numberOfLines={1}>{s.title}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -36,8 +34,8 @@ export default function MessageBubble({ role, content, sources }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 4,
-    paddingHorizontal: 16,
+    marginVertical: 3,
+    paddingHorizontal: 14,
   },
   userContainer: {
     alignItems: 'flex-end',
@@ -46,45 +44,58 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   bubble: {
-    maxWidth: '80%',
-    padding: 12,
-    borderRadius: 16,
+    maxWidth: '82%',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   userBubble: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#2b4f8a',
+    borderRadius: 18,
     borderBottomRightRadius: 4,
   },
   assistantBubble: {
-    backgroundColor: '#2a2a3e',
+    backgroundColor: '#1e1e2e',
+    borderRadius: 18,
     borderBottomLeftRadius: 4,
   },
   text: {
-    fontSize: 16,
+    fontSize: 15,
     lineHeight: 22,
   },
   userText: {
-    color: '#fff',
+    color: '#f0f0f5',
   },
   assistantText: {
-    color: '#e0e0e5',
+    color: '#d0d0e0',
   },
   sourcesContainer: {
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#3a3a55',
+    borderTopColor: '#2a2a44',
+    gap: 6,
   },
-  sourcesLabel: {
-    color: '#8888aa',
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 4,
-    textTransform: 'uppercase',
+  sourceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sourceBullet: {
+    color: '#5b9aff',
+    fontSize: 11,
+    fontWeight: '700',
+    backgroundColor: '#1a1a30',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    textAlign: 'center',
+    lineHeight: 18,
+    overflow: 'hidden',
   },
   sourceLink: {
     color: '#5b9aff',
-    fontSize: 14,
-    marginVertical: 2,
+    fontSize: 13,
+    flex: 1,
     textDecorationLine: 'underline',
   },
 });

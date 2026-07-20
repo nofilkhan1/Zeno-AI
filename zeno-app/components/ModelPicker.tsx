@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, FlatList, StyleSheet } from 'react-native';
-import { ChevronDown } from 'lucide-react-native';
+import { ChevronDown, Check } from 'lucide-react-native';
 import { MODELS } from '../lib/models';
 
 type Props = {
@@ -14,31 +14,38 @@ export default function ModelPicker({ selected, onSelect }: Props) {
 
   return (
     <>
-      <TouchableOpacity style={styles.trigger} onPress={() => setVisible(true)}>
+      <TouchableOpacity style={styles.trigger} onPress={() => setVisible(true)} activeOpacity={0.7}>
+        <View style={styles.triggerDot} />
         <Text style={styles.triggerText} numberOfLines={1}>{active.label}</Text>
-        <ChevronDown size={16} color="#8888aa" />
+        <ChevronDown size={14} color="#666" />
       </TouchableOpacity>
 
       <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setVisible(false)}>
           <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Select Model</Text>
+            <Text style={styles.sheetTitle}>Select a model</Text>
             <FlatList
               data={MODELS}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.option, item.id === active.id && styles.optionActive]}
-                  onPress={() => {
-                    onSelect?.(item.id);
-                    setVisible(false);
-                  }}
-                >
-                  <Text style={[styles.optionText, item.id === active.id && styles.optionTextActive]}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              renderItem={({ item }) => {
+                const isActive = item.id === active.id;
+                return (
+                  <TouchableOpacity
+                    style={[styles.option, isActive && styles.optionActive]}
+                    onPress={() => {
+                      onSelect?.(item.id);
+                      setVisible(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.optionLeft}>
+                      <View style={[styles.optionDot, isActive && styles.optionDotActive]} />
+                      <Text style={[styles.optionLabel, isActive && styles.optionLabelActive]}>{item.label}</Text>
+                    </View>
+                    {isActive && <Check size={16} color="#5b9aff" />}
+                  </TouchableOpacity>
+                );
+              }}
             />
           </View>
         </TouchableOpacity>
@@ -51,16 +58,24 @@ const styles = StyleSheet.create({
   trigger: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#252540',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: '#1a1a2e',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
     gap: 6,
+    borderWidth: 1,
+    borderColor: '#2a2a44',
+  },
+  triggerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#3b82f6',
   },
   triggerText: {
-    color: '#e0e0e5',
-    fontSize: 14,
-    maxWidth: 200,
+    color: '#b0b0c0',
+    fontSize: 13,
+    maxWidth: 160,
   },
   overlay: {
     flex: 1,
@@ -69,32 +84,55 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   sheet: {
-    backgroundColor: '#1a1a2e',
-    borderRadius: 16,
-    padding: 20,
-    width: '85%',
+    backgroundColor: '#161622',
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    width: '82%',
     maxHeight: '60%',
+    borderWidth: 1,
+    borderColor: '#2a2a44',
   },
   sheetTitle: {
-    color: '#f0f0f5',
-    fontSize: 18,
+    color: '#8888aa',
+    fontSize: 13,
     fontWeight: '600',
-    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
   option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: 8,
-    marginVertical: 2,
+    marginVertical: 1,
   },
   optionActive: {
-    backgroundColor: '#2a2a4e',
+    backgroundColor: '#1a1a30',
   },
-  optionText: {
+  optionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  optionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#3a3a55',
+  },
+  optionDotActive: {
+    backgroundColor: '#5b9aff',
+  },
+  optionLabel: {
     color: '#8888aa',
-    fontSize: 16,
+    fontSize: 15,
   },
-  optionTextActive: {
+  optionLabelActive: {
     color: '#f0f0f5',
     fontWeight: '500',
   },
