@@ -8,7 +8,7 @@ const tavilyApiKey = Deno.env.get('TAVILY_API_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const TAVILY_ENDPOINT = 'https://api.tavily.com/search';
-const MODEL = 'deepseek-ai/deepseek-v4-flash';
+const DEFAULT_MODEL = 'deepseek-ai/deepseek-v4-flash';
 
 const RATE_LIMIT_WINDOW = 60_000;
 const RATE_LIMIT_MAX = 10;
@@ -39,8 +39,8 @@ function makeTools() {
   }];
 }
 
-async function callNvidia(messages: unknown[], tools?: unknown[]) {
-  const body: Record<string, unknown> = { model: MODEL, messages, stream: false };
+async function callNvidia(messages: unknown[], tools?: unknown[], model?: string) {
+  const body: Record<string, unknown> = { model: model || DEFAULT_MODEL, messages, stream: false };
   if (tools) body.tools = tools;
   return fetch(NVIDIA_ENDPOINT, {
     method: 'POST',
@@ -55,7 +55,7 @@ async function generateTitle(userMessage: string): Promise<string> {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${nvidiaApiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: MODEL,
+        model: DEFAULT_MODEL,
         messages: [
           { role: 'system', content: 'Summarize this message as a short title (max 6 words, no quotes, no punctuation). Reply with only the title.' },
           { role: 'user', content: userMessage },
@@ -90,6 +90,9 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: `Rate limited. Try again in ${retryAfter}s.` }), { status: 429, headers: { 'Content-Type': 'application/json' } });
     }
 
+    const { data: chat } = await supabase.from('chats').select('model').eq('id', chatId).single();
+    const model = chat?.model || DEFAULT_MODEL;
+
     const { data: existingMsgs } = await supabase.from('messages').select('id').eq('chat_id', chatId).limit(1);
     const isFirstMessage = !existingMsgs || existingMsgs.length === 0;
 
@@ -103,11 +106,11 @@ Deno.serve(async (req) => {
     const { data: history } = await supabase.from('messages').select('role, content').eq('chat_id', chatId).order('created_at');
     const msgs = (history || []).map((m) => ({ role: m.role, content: m.content }));
 
-    const res1 = await callNvidia(msgs, makeTools());
+    const res1 = await callNvidia(msgs, makeTools(), model);
     if (!res1.ok) {
       const errText = await res1.text();
       if (res1.status === 503) {
-        const fallbackRes = await callNvidia(msgs);
+        const fallbackRes = await callNvidia(msgs, undefined, model);
         if (fallbackRes.ok) {
           const fb = await fallbackRes.json();
           const c = fb.choices?.[0]?.message?.content || '';
@@ -152,7 +155,7 @@ Deno.serve(async (req) => {
           { role: 'tool', tool_call_id: tc.id, content: toolContent },
         ];
 
-        const res2 = await callNvidia(toolMsgs);
+        const res2 = await callNvidia(toolMsgs, undefined, model);
         if (res2.ok) {
           const d2 = await res2.json();
           finalContent = d2.choices?.[0]?.message?.content || '';
