@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
-import { TouchableOpacity, Text, View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 
@@ -20,15 +20,10 @@ export default function ChatLayout() {
     });
   }, []);
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    router.replace('/(auth)/sign-in');
-  }
-
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f0f1a' }}>
+        <ActivityIndicator size="large" color="#3b82f6" />
       </View>
     );
   }
@@ -38,14 +33,12 @@ export default function ChatLayout() {
   return (
     <Stack
       screenOptions={{
-        headerRight: () => (
-          <TouchableOpacity onPress={signOut} style={{ marginRight: 16 }}>
-            <Text style={{ color: '#007AFF', fontSize: 16 }}>Sign Out</Text>
-          </TouchableOpacity>
-        ),
+        headerStyle: { backgroundColor: '#1a1a2e' },
+        headerTintColor: '#f0f0f5',
+        headerShadowVisible: false,
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'Zeno' }} />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="chat/[chatId]" options={{ title: 'Chat' }} />
     </Stack>
   );
