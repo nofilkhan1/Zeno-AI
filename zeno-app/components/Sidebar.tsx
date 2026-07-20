@@ -3,24 +3,19 @@ import { View, Text, TouchableOpacity, FlatList, Animated, StyleSheet } from 're
 import { Plus, MessageSquare, X, LogOut } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
-
-const DUMMY_CHATS = [
-  { id: '1', title: 'Quantum Computing Explained' },
-  { id: '2', title: 'Recipe Ideas' },
-  { id: '3', title: 'Code Review Help' },
-  { id: '4', title: 'Travel Planning' },
-  { id: '5', title: 'Math Homework' },
-];
+import { Chat } from '../lib/types';
 
 type Props = {
   visible: boolean;
   onClose: () => void;
   onNewChat: () => void;
+  chats?: Chat[];
+  onSelectChat?: (chat: Chat) => void;
 };
 
 const SIDEBAR_WIDTH = 280;
 
-export default function Sidebar({ visible, onClose, onNewChat }: Props) {
+export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSelectChat }: Props) {
   const router = useRouter();
   const translateX = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
 
@@ -58,10 +53,10 @@ export default function Sidebar({ visible, onClose, onNewChat }: Props) {
             </TouchableOpacity>
 
             <FlatList
-              data={DUMMY_CHATS}
+              data={chats}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
-                <TouchableOpacity style={styles.chatItem}>
+                <TouchableOpacity style={styles.chatItem} onPress={() => onSelectChat?.(item)}>
                   <MessageSquare size={16} color="#8888aa" />
                   <Text style={styles.chatItemText} numberOfLines={1}>{item.title}</Text>
                 </TouchableOpacity>

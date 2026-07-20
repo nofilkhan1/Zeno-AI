@@ -1,31 +1,14 @@
 import { FlatList, View, StyleSheet, Text } from 'react-native';
+import { Message } from '../lib/types';
 import MessageBubble from './MessageBubble';
 import InputBar from './InputBar';
-
-type Message = {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-};
-
-const DUMMY_MESSAGES: Message[] = [
-  { id: '1', role: 'assistant', content: 'Hello! How can I help you today?' },
-  { id: '2', role: 'user', content: 'What is the capital of France?' },
-  { id: '3', role: 'assistant', content: 'The capital of France is Paris.' },
-  { id: '4', role: 'user', content: 'Can you explain quantum computing in simple terms?' },
-  {
-    id: '5',
-    role: 'assistant',
-    content: 'Quantum computing uses quantum bits (qubits) that can exist in multiple states at once, unlike classical bits that are either 0 or 1. This allows quantum computers to solve certain problems much faster than traditional computers.',
-  },
-];
 
 type Props = {
   messages?: Message[];
   onSend?: (text: string) => void;
 };
 
-export default function ChatScreen({ messages = DUMMY_MESSAGES, onSend }: Props) {
+export default function ChatScreen({ messages = [], onSend }: Props) {
   return (
     <View style={styles.container}>
       <FlatList
@@ -35,7 +18,7 @@ export default function ChatScreen({ messages = DUMMY_MESSAGES, onSend }: Props)
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>No messages yet</Text>
+            <Text style={styles.emptyText}>Start a conversation</Text>
           </View>
         }
       />

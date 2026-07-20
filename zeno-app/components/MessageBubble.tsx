@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 
 type Props = {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
 };
 
