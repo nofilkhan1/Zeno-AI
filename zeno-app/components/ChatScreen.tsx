@@ -9,12 +9,19 @@ type Props = {
 };
 
 export default function ChatScreen({ messages = [], onSend }: Props) {
+  const streaming = messages.some((m) => m.role === 'assistant' && !m.content);
+
   return (
     <View style={styles.container}>
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <MessageBubble role={item.role} content={item.content} />}
+        renderItem={({ item }) => (
+          <MessageBubble
+            role={item.role}
+            content={item.content || (streaming ? '▊' : '')}
+          />
+        )}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>

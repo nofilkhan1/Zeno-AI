@@ -5,7 +5,6 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const nvidiaApiKey = Deno.env.get('NVIDIA_NIM_API_KEY')!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
 const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
 
 Deno.serve(async (req) => {
@@ -19,7 +18,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get the user from the JWT
     const authHeader = req.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
 
@@ -36,7 +34,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Save user message
     const { error: userMsgError } = await supabase.from('messages').insert({
       chat_id: chatId,
       role: 'user',
@@ -50,7 +47,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Load chat history for context
     const { data: history } = await supabase
       .from('messages')
       .select('role, content')
@@ -62,7 +58,6 @@ Deno.serve(async (req) => {
       content: m.content,
     }));
 
-    // Call NVIDIA NIM
     const nvidiaRes = await fetch(NVIDIA_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -72,6 +67,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: 'meta/llama-3.3-70b-instruct',
         messages,
+        stream: true,
       }),
     });
 
@@ -83,25 +79,73 @@ Deno.serve(async (req) => {
       });
     }
 
-    const nvidiaData = await nvidiaRes.json();
-    const reply = nvidiaData.choices?.[0]?.message?.content || '';
+    const nvidiaReader = nvidiaRes.body.getReader();
+    const decoder = new TextDecoder();
+    let fullReply = '';
 
-    // Save assistant reply
-    const { error: assistantMsgError } = await supabase.from('messages').insert({
-      chat_id: chatId,
-      role: 'assistant',
-      content: reply,
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          while (true) {
+            const { done, value } = await nvidiaReader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n').filter((l) => l.startsWith('data: '));
+
+            for (const line of lines) {
+              const jsonStr = line.slice(6).trim();
+              if (jsonStr === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const content = parsed.choices?.[0]?.delta?.content || '';
+                if (content) {
+                  fullReply += content;
+                  controller.enqueue(new TextEncoder().encode(content));
+                }
+              } catch {
+                // skip malformed JSON lines
+              }
+            }
+          }
+
+          const { error: saveError } = await supabase.from('messages').insert({
+            chat_id: chatId,
+            role: 'assistant',
+            content: fullReply,
+          });
+
+          if (saveError) {
+            console.error('Failed to save assistant reply:', saveError.message);
+          }
+
+          controller.close();
+        } catch (err) {
+          if (fullReply) {
+            await supabase.from('messages').insert({
+              chat_id: chatId,
+              role: 'assistant',
+              content: fullReply,
+            }).then().catch(() => {});
+          }
+          controller.error(err);
+        }
+      },
     });
 
-    if (assistantMsgError) {
-      return new Response(JSON.stringify({ error: assistantMsgError.message }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    req.signal.addEventListener('abort', async () => {
+      if (fullReply) {
+        await supabase.from('messages').insert({
+          chat_id: chatId,
+          role: 'assistant',
+          content: fullReply,
+        }).then().catch(() => {});
+      }
+    });
 
-    return new Response(JSON.stringify({ reply }), {
-      headers: { 'Content-Type': 'application/json' },
+    return new Response(stream, {
+      headers: { 'Content-Type': 'text/plain' },
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {

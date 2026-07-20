@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { View, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Menu } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
@@ -8,12 +8,15 @@ import Sidebar from '../../components/Sidebar';
 import ChatScreen from '../../components/ChatScreen';
 import ModelPicker from '../../components/ModelPicker';
 
+const EDGE_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/chat`;
+
 export default function ChatListScreen() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [sending, setSending] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     loadChats();
@@ -89,28 +92,69 @@ export default function ChatListScreen() {
 
     setMessages((prev) => [...prev, userMsg]);
 
+    const assistantId = crypto.randomUUID();
+    const assistantMsg: Message = {
+      id: assistantId,
+      chat_id: activeChat.id,
+      role: 'assistant',
+      content: '',
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, assistantMsg]);
+
     try {
-      const { data, error } = await supabase.functions.invoke('chat', {
-        body: { chatId: activeChat.id, message: text },
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('No session');
+
+      abortRef.current = new AbortController();
+
+      const response = await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chatId: activeChat.id, message: text }),
+        signal: abortRef.current.signal,
       });
 
-      if (error) {
-        Alert.alert('Error', error.message || 'Failed to get response');
+      if (!response.ok) {
+        const errData = await response.text();
+        throw new Error(errData || `HTTP ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        const fullText = await response.text();
+        setMessages((prev) =>
+          prev.map((m) => m.id === assistantId ? { ...m, content: fullText } : m)
+        );
         return;
       }
 
-      const assistantMsg: Message = {
-        id: crypto.randomUUID(),
-        chat_id: activeChat.id,
-        role: 'assistant',
-        content: data.reply,
-        created_at: new Date().toISOString(),
-      };
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const textChunk = decoder.decode(value, { stream: true });
+        setMessages((prev) =>
+          prev.map((m) => m.id === assistantId ? { ...m, content: m.content + textChunk } : m)
+        );
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
 
-      setMessages((prev) => [...prev, assistantMsg]);
-    } catch {
-      Alert.alert('Error', 'Could not connect to AI. Please try again.');
+      // If we got partial content, keep it — Edge Function saves whatever it had
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId && !m.content
+            ? { ...m, content: 'Sorry, an error occurred while generating a response.' }
+            : m
+        )
+      );
     } finally {
+      abortRef.current = null;
       setSending(false);
     }
   }, [activeChat, sending]);
