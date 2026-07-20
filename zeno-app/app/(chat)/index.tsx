@@ -8,6 +8,10 @@ import Sidebar from '../../components/Sidebar';
 import ChatScreen from '../../components/ChatScreen';
 import ModelPicker from '../../components/ModelPicker';
 
+function randomId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const EDGE_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/chat`;
 
 export default function ChatListScreen() {
@@ -92,7 +96,7 @@ export default function ChatListScreen() {
     setSendError(null);
 
     const userMsg: Message = {
-      id: crypto.randomUUID(),
+      id: randomId(),
       chat_id: activeChat.id,
       role: 'user',
       content: text,
@@ -101,7 +105,7 @@ export default function ChatListScreen() {
 
     setMessages((prev) => [...prev, userMsg]);
 
-    const assistantId = crypto.randomUUID();
+    const assistantId = randomId();
     const assistantMsg: Message = {
       id: assistantId,
       chat_id: activeChat.id,
@@ -112,11 +116,16 @@ export default function ChatListScreen() {
 
     setMessages((prev) => [...prev, assistantMsg]);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 30000);
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('No session');
-
-      abortRef.current = new AbortController();
 
       const response = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
@@ -125,8 +134,10 @@ export default function ChatListScreen() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ chatId: activeChat.id, message: text }),
-        signal: abortRef.current.signal,
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -145,7 +156,20 @@ export default function ChatListScreen() {
       loadMessages(activeChat.id);
       loadChats();
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
+      clearTimeout(timeoutId);
+      const isAbort = err instanceof Error && (err.name === 'AbortError' || err.message?.includes('cancelled') || err.message?.includes('aborted'));
+      if (isAbort) {
+        const errorMsg = 'Request timed out. The server did not respond in time.';
+        setSendError(errorMsg);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId && !m.content
+              ? { ...m, content: `Error: ${errorMsg}` }
+              : m
+          )
+        );
+        return;
+      }
 
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';
       setSendError(errorMsg);
