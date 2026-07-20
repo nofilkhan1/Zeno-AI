@@ -1,12 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, FlatList, StyleSheet } from 'react-native';
 import { ChevronDown } from 'lucide-react-native';
-
-const DUMMY_MODELS = [
-  { id: 'meta/llama-3.3-70b-instruct', label: 'Llama 3.3 70B (NVIDIA)' },
-  { id: 'nvidia/llama-3.1-nemotron-70b', label: 'Nemotron 70B (NVIDIA)' },
-  { id: 'mistralai/mistral-7b-instruct', label: 'Mistral 7B (NVIDIA)' },
-];
+import { MODELS } from '../lib/models';
 
 type Props = {
   selected?: string;
@@ -15,7 +10,7 @@ type Props = {
 
 export default function ModelPicker({ selected, onSelect }: Props) {
   const [visible, setVisible] = useState(false);
-  const active = DUMMY_MODELS.find((m) => m.id === selected) || DUMMY_MODELS[0];
+  const active = MODELS.find((m) => m.id === selected) || MODELS[0];
 
   return (
     <>
@@ -29,7 +24,7 @@ export default function ModelPicker({ selected, onSelect }: Props) {
           <View style={styles.sheet}>
             <Text style={styles.sheetTitle}>Select Model</Text>
             <FlatList
-              data={DUMMY_MODELS}
+              data={MODELS}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
                 <TouchableOpacity

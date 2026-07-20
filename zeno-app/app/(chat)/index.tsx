@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Menu } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import { Chat, Message } from '../../lib/types';
+import { MODELS } from '../../lib/models';
 import Sidebar from '../../components/Sidebar';
 import ChatScreen from '../../components/ChatScreen';
 import ModelPicker from '../../components/ModelPicker';
@@ -67,6 +68,12 @@ export default function ChatListScreen() {
     setSidebarVisible(false);
   }, []);
 
+  const handleModelSelect = useCallback(async (modelId: string) => {
+    if (!activeChat) return;
+    setActiveChat((prev) => prev ? { ...prev, model: modelId } : null);
+    await supabase.from('chats').update({ model: modelId }).eq('id', activeChat.id);
+  }, [activeChat]);
+
   const handleSend = useCallback(async (text: string) => {
     if (!activeChat || sending) return;
 
@@ -114,7 +121,10 @@ export default function ChatListScreen() {
         <TouchableOpacity onPress={() => setSidebarVisible(true)} style={styles.menuButton}>
           <Menu size={24} color="#e0e0e5" />
         </TouchableOpacity>
-        <ModelPicker />
+        <ModelPicker
+          selected={activeChat?.model || MODELS[0].id}
+          onSelect={handleModelSelect}
+        />
       </View>
       <ChatScreen messages={messages} onSend={handleSend} />
       <Sidebar
