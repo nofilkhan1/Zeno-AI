@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
   const requestId = crypto.randomUUID().slice(0, 8);
 
   try {
-    const { chatId, message, forceSearch } = await req.json();
+    const { chatId, message, forceSearch, modelOverride } = await req.json();
 
     if (!chatId || !message) {
       return new Response(JSON.stringify({ error: 'chatId and message required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
-    console.log(`[${requestId}] user=${user.id} chat=${chatId} forceSearch=${!!forceSearch} message="${message.slice(0, 80)}"`);
+    console.log(`[${requestId}] user=${user.id} chat=${chatId} forceSearch=${!!forceSearch} modelOverride=${modelOverride || 'none'} message="${message.slice(0, 80)}"`);
 
     const { allowed, retryAfter } = checkRateLimit(user.id);
     if (!allowed) {
@@ -233,9 +233,9 @@ Deno.serve(async (req) => {
     }
 
     const { data: chat } = await supabase.from('chats').select('model').eq('id', chatId).single();
-    const selectedModel = chat?.model || DEFAULT_MODEL;
+    const selectedModel = modelOverride || chat?.model || DEFAULT_MODEL;
     const selectedSupportsTools = TOOLS_CAPABLE_SET.has(selectedModel);
-    console.log(`[${requestId}] selectedModel=${selectedModel} supportsTools=${selectedSupportsTools}`);
+    console.log(`[${requestId}] selectedModel=${selectedModel} supportsTools=${selectedSupportsTools} override=${!!modelOverride}`);
 
     const { data: existingMsgs } = await supabase.from('messages').select('id').eq('chat_id', chatId).limit(1);
     const isFirstMessage = !existingMsgs || existingMsgs.length === 0;

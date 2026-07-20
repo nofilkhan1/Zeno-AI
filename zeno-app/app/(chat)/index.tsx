@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { View, StyleSheet, Pressable, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { View, StyleSheet, Pressable, LayoutAnimation, Platform, UIManager, Text } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Menu, Settings } from 'lucide-react-native';
+import { Menu, Settings, Globe } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
 import { Chat, Message } from '../../lib/types';
@@ -9,7 +9,7 @@ import { MODELS } from '../../lib/models';
 import Sidebar from '../../components/Sidebar';
 import ChatScreen from '../../components/ChatScreen';
 import ModelPicker from '../../components/ModelPicker';
-import { useColors } from '../../lib/theme';
+import { useColors, typography, radii } from '../../lib/theme';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -25,6 +25,7 @@ const ACTIVE_CHAT_KEY = 'zeno-active-chat-id';
 export default function ChatListScreen() {
   const router = useRouter();
   const colors = useColors();
+  const t = typography(colors);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -32,10 +33,11 @@ export default function ChatListScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [forceSearch, setForceSearch] = useState(false);
+  const [showWebPicker, setShowWebPicker] = useState(false);
+  const [webModel, setWebModel] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const sendingRef = useRef(false);
-  const restoringRef = useRef(true);
+  const webModelRef = useRef<string | null>(null);
 
   useEffect(() => { loadChats(); }, []);
   useEffect(() => { if (activeChat) { loadMessages(activeChat.id); persistActiveChat(activeChat.id); } }, [activeChat?.id]);
@@ -46,10 +48,8 @@ export default function ChatListScreen() {
 
   async function loadChats() {
     setChatsLoading(true);
-    // Restore active chat from AsyncStorage first
     let restoredId: string | null = null;
     try { restoredId = await AsyncStorage.getItem(ACTIVE_CHAT_KEY); } catch {}
-
     const { data } = await supabase.from('chats').select('*').order('updated_at', { ascending: false });
     if (data) {
       setChats(data);
@@ -59,7 +59,6 @@ export default function ChatListScreen() {
       }
     }
     setChatsLoading(false);
-    restoringRef.current = false;
   }
 
   async function loadMessages(chatId: string) {
@@ -81,6 +80,13 @@ export default function ChatListScreen() {
     await supabase.from('chats').update({ model: modelId }).eq('id', activeChat.id);
   }, [activeChat]);
 
+  function handleWebModelSelect(modelId: string) {
+    if (modelId === '__cancel__') { setShowWebPicker(false); return; }
+    setWebModel(modelId);
+    webModelRef.current = modelId;
+    setShowWebPicker(false);
+  }
+
   const abortChatIdRef = useRef<string | null>(null);
 
   const handleSend = useCallback(async (text: string) => {
@@ -91,6 +97,7 @@ export default function ChatListScreen() {
     abortChatIdRef.current = activeChat.id;
 
     const chatId = activeChat.id;
+    const useWeb = webModelRef.current;
     const userMsg: Message = { id: randomId(), chat_id: chatId, role: 'user', content: text, created_at: new Date().toISOString() };
     const assistantId = randomId();
     setMessages((prev) => [...prev, userMsg, { id: assistantId, chat_id: chatId, role: 'assistant', content: '', created_at: new Date().toISOString() } as Message]);
@@ -103,10 +110,15 @@ export default function ChatListScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('No session');
 
+      const body: Record<string, unknown> = { chatId, message: text };
+      if (useWeb) {
+        body.forceSearch = true;
+        body.modelOverride = useWeb;
+      }
       const response = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, message: text, forceSearch }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
 
@@ -127,9 +139,10 @@ export default function ChatListScreen() {
         }
         return [...prev, { id: assistantId, chat_id: chatId, role: 'assistant' as const, ...updated, created_at: new Date().toISOString() } as Message];
       });
+      if (useWeb) { setWebModel(null); webModelRef.current = null; }
       loadChats();
     } catch (err) {
-      if (abortChatIdRef.current !== chatId) return; // stale response, ignore
+      if (abortChatIdRef.current !== chatId) return;
       clearTimeout(timeoutId);
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
       const isAbort = err instanceof Error && (err.name === 'AbortError' || err.message?.includes('cancelled') || err.message?.includes('aborted'));
@@ -138,18 +151,19 @@ export default function ChatListScreen() {
       setSendError(displayMsg);
       setMessages((prev) => {
         const existing = prev.find((m) => m.id === assistantId && !m.content);
-        const errMsg = `Error: ${displayMsg}`;
+        const errMsgStr = `Error: ${displayMsg}`;
         if (existing) {
-          return prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: errMsg, used_web_search: false } : m);
+          return prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: errMsgStr, used_web_search: false } : m);
         }
-        return [...prev, { id: assistantId, chat_id: chatId, role: 'assistant' as const, content: errMsg, used_web_search: false, created_at: new Date().toISOString() } as Message];
+        return [...prev, { id: assistantId, chat_id: chatId, role: 'assistant' as const, content: errMsgStr, used_web_search: false, created_at: new Date().toISOString() } as Message];
       });
+      if (useWeb) { setWebModel(null); webModelRef.current = null; }
     } finally {
       abortRef.current = null;
       sendingRef.current = false;
       setSending(false);
     }
-  }, [activeChat, forceSearch]);
+  }, [activeChat]);
 
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
@@ -162,8 +176,20 @@ export default function ChatListScreen() {
           <Settings size={24} color={colors.textMuted} />
         </Pressable>
       </View>
-      <ChatScreen messages={messages} onSend={handleSend} sending={sending} sendError={sendError} onDismissError={() => setSendError(null)} chatModel={activeChat?.model} forceSearch={forceSearch} onForceSearchChange={setForceSearch} />
+      {webModel && (
+        <View style={[s.webBanner, { backgroundColor: colors.surface, borderColor: colors.composerBorder }]}>
+          <Globe size={14} color={colors.accent} />
+          <Text style={[t.caption, { color: colors.accent }]}>Web search: {MODELS.find((m) => m.id === webModel)?.label || webModel}</Text>
+          <Pressable onPress={() => { setWebModel(null); webModelRef.current = null; }}>
+            <Text style={[t.caption, { color: colors.textMuted, marginLeft: 8 }]}>Cancel</Text>
+          </Pressable>
+        </View>
+      )}
+      <ChatScreen messages={messages} onSend={handleSend} sending={sending} sendError={sendError} onDismissError={() => setSendError(null)} chatModel={activeChat?.model} onWebGlobePress={() => setShowWebPicker(true)} />
       <Sidebar visible={sidebarVisible} onClose={() => setSidebarVisible(false)} onNewChat={handleNewChat} chats={chats} chatsLoading={chatsLoading} activeChatId={activeChat?.id} onSelectChat={(chat) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActiveChat(chat); setSendError(null); setSidebarVisible(false); }} onRenameChat={(chatId, newTitle) => { setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title: newTitle } : c)); setActiveChat((prev) => prev?.id === chatId ? { ...prev, title: newTitle } : prev); }} />
+      {showWebPicker && (
+        <ModelPicker selected={MODELS.find((m) => m.supportsTools)?.id} onSelect={handleWebModelSelect} webMode label="Select a web search model" />
+      )}
     </View>
   );
 }
@@ -172,4 +198,5 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, paddingTop: 52 },
   headerBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  webBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 14, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radii.sm, borderWidth: 1 },
 });

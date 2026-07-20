@@ -6,8 +6,7 @@ import { useColors, typography, radii, softShadow } from '../lib/theme';
 type Props = {
   onSend: (text: string) => void;
   disabled?: boolean;
-  forceSearch?: boolean;
-  onForceSearchToggle?: () => void;
+  onGlobePress?: () => void;
 };
 
 function ThinkingDots() {
@@ -46,7 +45,7 @@ const td = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#eee' },
 });
 
-export default function InputBar({ onSend, disabled, forceSearch, onForceSearchToggle }: Props) {
+export default function InputBar({ onSend, disabled, onGlobePress }: Props) {
   const colors = useColors();
   const [text, setText] = useState('');
 
@@ -63,13 +62,12 @@ export default function InputBar({ onSend, disabled, forceSearch, onForceSearchT
         <Pressable
           style={({ pressed }) => [
             s.globeBtn,
-            forceSearch && { backgroundColor: colors.accent },
             pressed && { opacity: 0.7 },
           ]}
-          onPress={onForceSearchToggle}
+          onPress={onGlobePress}
           disabled={disabled}
         >
-          <Globe size={20} color={forceSearch ? '#fff' : colors.textMuted} />
+          <Globe size={20} color={colors.textMuted} />
         </Pressable>
         <View style={s.inputWrapper}>
           <TextInput

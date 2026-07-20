@@ -1,10 +1,9 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import { FlatList, View, StyleSheet, Text, Pressable, Animated, useColorScheme } from 'react-native';
 import { X, Sparkles } from 'lucide-react-native';
 import { Message } from '../lib/types';
 import MessageBubble from './MessageBubble';
 import InputBar from './InputBar';
-import ModeTabs from './ModeTabs';
 import { useColors, typography, radii } from '../lib/theme';
 
 type Props = {
@@ -14,8 +13,7 @@ type Props = {
   sendError?: string | null;
   onDismissError?: () => void;
   chatModel?: string;
-  forceSearch?: boolean;
-  onForceSearchChange?: (v: boolean) => void;
+  onWebGlobePress?: () => void;
 };
 
 function FadeInView({ children, index }: { children: React.ReactNode; index: number }) {
@@ -26,7 +24,7 @@ function FadeInView({ children, index }: { children: React.ReactNode; index: num
   return <Animated.View style={{ opacity }}>{children}</Animated.View>;
 }
 
-export default function ChatScreen({ messages = [], onSend, sending, sendError, onDismissError, chatModel, forceSearch, onForceSearchChange }: Props) {
+export default function ChatScreen({ messages = [], onSend, sending, sendError, onDismissError, chatModel, onWebGlobePress }: Props) {
   const colors = useColors();
   const scheme = useColorScheme();
   const t = typography(colors);
@@ -41,9 +39,6 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
 
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
-      <View style={[s.modeBar, { borderBottomColor: colors.composerBorder }]}>
-        <ModeTabs active={forceSearch ? 'search' : 'normal'} onChange={(mode) => onForceSearchChange?.(mode === 'search')} />
-      </View>
       {sendError ? (
         <View style={[s.errorBar, { backgroundColor: scheme === 'dark' ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.06)', borderColor: scheme === 'dark' ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.15)' }]}>
           <Text style={[s.errorText, { color: colors.danger }]} numberOfLines={2}>{sendError}</Text>
@@ -82,8 +77,7 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
       <InputBar
         onSend={(text) => onSend?.(text)}
         disabled={sending}
-        forceSearch={forceSearch}
-        onForceSearchToggle={() => onForceSearchChange?.(!forceSearch)}
+        onGlobePress={onWebGlobePress}
       />
     </View>
   );
@@ -91,7 +85,6 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
 
 const s = StyleSheet.create({
   container: { flex: 1 },
-  modeBar: { alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, marginHorizontal: 14 },
   errorBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 14, marginTop: 8, borderRadius: radii.sm, borderWidth: 1 },
   errorText: { fontSize: 14, flex: 1, lineHeight: 20, fontFamily: 'Inter_400Regular' },
   errorDismiss: { padding: 8 },
