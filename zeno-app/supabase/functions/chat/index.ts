@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
-    console.log(`[${requestId}] user=${user.id} chat=${chatId} forceSearch=${!!forceSearch} modelOverride=${modelOverride || 'none'} message="${message.slice(0, 80)}"`);
+    console.log(`[${requestId}] user=${user.id} chat=${chatId} forceSearch=${forceSearch === true} modelOverride=${modelOverride || 'none'} message="${message.slice(0, 80)}"`);
 
     const { allowed, retryAfter } = checkRateLimit(user.id);
     if (!allowed) {
@@ -251,12 +251,16 @@ Deno.serve(async (req) => {
     const { data: history } = await supabase.from('messages').select('role, content').eq('chat_id', chatId).order('created_at');
     const msgs = (history || []).map((m) => ({ role: m.role, content: m.content }));
 
+    // Only run search when client explicitly sends forceSearch===true
+    // forceSearch must be the boolean true — no truthy coercion, no auto-detection
+    const shouldSearch = forceSearch === true;
+
     // Determine which model to use for answering
     let answerModel = selectedModel;
     let answeredByModel: string | undefined;
 
-    if (forceSearch) {
-      // Manual search: always run search flow with tools-capable model
+    if (shouldSearch) {
+      // Manual search: run search flow with tools-capable model
       console.log(`[${requestId}] manual search forced, using ${TOOLS_MODEL}`);
       const result = await runSearchFlow(msgs, TOOLS_MODEL, requestId);
 
