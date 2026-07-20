@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
+import { View, StyleSheet, Pressable, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Menu, Settings } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
 import { Chat, Message } from '../../lib/types';
 import { MODELS } from '../../lib/models';
@@ -10,11 +11,16 @@ import ChatScreen from '../../components/ChatScreen';
 import ModelPicker from '../../components/ModelPicker';
 import { useColors } from '../../lib/theme';
 
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 function randomId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 const EDGE_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/chat`;
+const ACTIVE_CHAT_KEY = 'zeno-active-chat-id';
 
 export default function ChatListScreen() {
   const router = useRouter();
@@ -29,15 +35,31 @@ export default function ChatListScreen() {
   const [forceSearch, setForceSearch] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const sendingRef = useRef(false);
+  const restoringRef = useRef(true);
 
   useEffect(() => { loadChats(); }, []);
-  useEffect(() => { if (activeChat) loadMessages(activeChat.id); }, [activeChat?.id]);
+  useEffect(() => { if (activeChat) { loadMessages(activeChat.id); persistActiveChat(activeChat.id); } }, [activeChat?.id]);
+
+  async function persistActiveChat(id: string) {
+    try { await AsyncStorage.setItem(ACTIVE_CHAT_KEY, id); } catch {}
+  }
 
   async function loadChats() {
     setChatsLoading(true);
+    // Restore active chat from AsyncStorage first
+    let restoredId: string | null = null;
+    try { restoredId = await AsyncStorage.getItem(ACTIVE_CHAT_KEY); } catch {}
+
     const { data } = await supabase.from('chats').select('*').order('updated_at', { ascending: false });
-    if (data) { setChats(data); if (data.length > 0 && !activeChat) setActiveChat(data[0]); }
+    if (data) {
+      setChats(data);
+      if (data.length > 0 && !activeChat) {
+        const restored = restoredId ? data.find((c) => c.id === restoredId) : undefined;
+        setActiveChat(restored || data[0]);
+      }
+    }
     setChatsLoading(false);
+    restoringRef.current = false;
   }
 
   async function loadMessages(chatId: string) {
@@ -141,7 +163,7 @@ export default function ChatListScreen() {
         </Pressable>
       </View>
       <ChatScreen messages={messages} onSend={handleSend} sending={sending} sendError={sendError} onDismissError={() => setSendError(null)} chatModel={activeChat?.model} forceSearch={forceSearch} onForceSearchChange={setForceSearch} />
-      <Sidebar visible={sidebarVisible} onClose={() => setSidebarVisible(false)} onNewChat={handleNewChat} chats={chats} chatsLoading={chatsLoading} activeChatId={activeChat?.id} onSelectChat={(chat) => { setActiveChat(chat); setSendError(null); setSidebarVisible(false); }} onRenameChat={(chatId, newTitle) => { setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title: newTitle } : c)); setActiveChat((prev) => prev?.id === chatId ? { ...prev, title: newTitle } : prev); }} />
+      <Sidebar visible={sidebarVisible} onClose={() => setSidebarVisible(false)} onNewChat={handleNewChat} chats={chats} chatsLoading={chatsLoading} activeChatId={activeChat?.id} onSelectChat={(chat) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActiveChat(chat); setSendError(null); setSidebarVisible(false); }} onRenameChat={(chatId, newTitle) => { setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title: newTitle } : c)); setActiveChat((prev) => prev?.id === chatId ? { ...prev, title: newTitle } : prev); }} />
     </View>
   );
 }

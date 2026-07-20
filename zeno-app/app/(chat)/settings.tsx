@@ -1,8 +1,12 @@
-import { View, Text, Switch, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, Switch, Pressable, StyleSheet, Alert, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Trash2 } from 'lucide-react-native';
 import { useColors, useThemeMode, typography, radii, softShadow } from '../../lib/theme';
 import { supabase } from '../../lib/supabase';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -12,6 +16,7 @@ export default function SettingsScreen() {
   const isDark = mode === 'dark' || (mode === 'system' && resolved === 'dark');
 
   function toggleTheme() {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (mode === 'system') setMode('dark');
     else if (mode === 'dark') setMode('light');
     else setMode('system');
