@@ -99,11 +99,11 @@ export default function ChatListScreen() {
 
       setMessages((prev) => {
         const existing = prev.find((m) => m.id === assistantId);
+        const updated = { content: data.content || '', used_web_search: !!data.usedSearch, sources: data.sources || [], answered_by_model: data.answeredByModel || undefined };
         if (existing) {
-          return prev.map((m) => m.id === assistantId ? { ...m, content: data.content || '', sources: data.sources || [], answered_by_model: data.answeredByModel || undefined } : m);
+          return prev.map((m) => m.id === assistantId ? { ...m, ...updated } : m);
         }
-        // Restore if wiped by stale loadMessages
-        return [...prev, { id: assistantId, chat_id: chatId, role: 'assistant' as const, content: data.content || '', sources: data.sources || [], answered_by_model: data.answeredByModel || undefined, created_at: new Date().toISOString() } as Message];
+        return [...prev, { id: assistantId, chat_id: chatId, role: 'assistant' as const, ...updated, created_at: new Date().toISOString() } as Message];
       });
       loadChats();
     } catch (err) {
@@ -116,10 +116,11 @@ export default function ChatListScreen() {
       setSendError(displayMsg);
       setMessages((prev) => {
         const existing = prev.find((m) => m.id === assistantId && !m.content);
+        const errMsg = `Error: ${displayMsg}`;
         if (existing) {
-          return prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: `Error: ${displayMsg}` } : m);
+          return prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: errMsg, used_web_search: false } : m);
         }
-        return [...prev, { id: assistantId, chat_id: chatId, role: 'assistant' as const, content: `Error: ${displayMsg}`, created_at: new Date().toISOString() } as Message];
+        return [...prev, { id: assistantId, chat_id: chatId, role: 'assistant' as const, content: errMsg, used_web_search: false, created_at: new Date().toISOString() } as Message];
       });
     } finally {
       abortRef.current = null;

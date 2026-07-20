@@ -8,9 +8,10 @@ type Props = {
   sources?: Source[] | null;
   answeredByModel?: string | null;
   chatModel?: string;
+  webSearch?: boolean | null;
 };
 
-export default function MessageBubble({ role, content, sources, answeredByModel, chatModel }: Props) {
+export default function MessageBubble({ role, content, sources, answeredByModel, chatModel, webSearch }: Props) {
   const colors = useColors();
   const t = typography(colors);
   const isUser = role === 'user';
@@ -41,8 +42,13 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
           ))}
         </View>
       )}
+      {webSearch && !hasSources && (
+        <View style={[sr.webSearchBadge, { backgroundColor: colors.userBubble, borderColor: colors.composerBorder }]}>
+          <Text style={[sr.badgeText, { color: colors.accent }]}>Web search</Text>
+        </View>
+      )}
       {showAnsweredBy && (
-        <Text style={[sr.answeredBy, { color: colors.textMuted }]}>Answered using {lastSegment}{hasSources ? ' (web search)' : ''}</Text>
+        <Text style={[sr.answeredBy, { color: colors.textMuted }]}>Answered using {lastSegment}</Text>
       )}
     </View>
   );
@@ -57,4 +63,6 @@ const sr = StyleSheet.create({
   sourceBullet: { fontSize: 11, fontWeight: '700', width: 20, height: 20, borderRadius: 10, textAlign: 'center', lineHeight: 20, overflow: 'hidden' },
   sourceLink: { fontSize: 13, flex: 1, textDecorationLine: 'underline', fontFamily: 'Inter_500Medium' },
   answeredBy: { fontSize: 13, marginTop: 4, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
+  webSearchBadge: { alignSelf: 'flex-start', marginTop: 8, borderRadius: 6, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
+  badgeText: { fontSize: 11, fontFamily: 'Inter_500Medium' },
 });

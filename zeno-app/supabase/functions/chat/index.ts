@@ -255,48 +255,37 @@ Deno.serve(async (req) => {
     let answerModel = selectedModel;
     let answeredByModel: string | undefined;
 
-    const needsToolsRoute = forceSearch || (selectedModel && !selectedSupportsTools);
+    if (forceSearch) {
+      // Manual search: always run search flow with tools-capable model
+      console.log(`[${requestId}] manual search forced, using ${TOOLS_MODEL}`);
+      const result = await runSearchFlow(msgs, TOOLS_MODEL, requestId);
 
-    if (needsToolsRoute) {
-      // Route through a tools-capable model for search detection
-      const toolsModel = TOOLS_MODEL;
-
-      if (forceSearch) {
-        // Manual search: always run search flow with tools-capable model
-        console.log(`[${requestId}] manual search forced, using ${toolsModel}`);
-      } else {
-        // Auto-detect: probe with tools-capable model to see if search is needed
-        console.log(`[${requestId}] probing ${toolsModel} for search need...`);
-      }
-
-      const result = await runSearchFlow(msgs, toolsModel, requestId);
+      answerModel = TOOLS_MODEL;
+      answeredByModel = result.usedSearch ? TOOLS_MODEL : undefined;
 
       if (result.usedSearch) {
-        // Search was needed and completed — use tools model's answer
-        answerModel = toolsModel;
-        answeredByModel = toolsModel;
-
         const payload: Record<string, unknown> = { chat_id: chatId, role: 'assistant', content: result.content };
-        if (result.usedSearch) { payload.used_web_search = true; payload.sources = result.sources; }
-        if (answeredByModel) { payload.answered_by_model = answeredByModel; }
+        payload.used_web_search = true;
+        if (result.sources.length) payload.sources = result.sources;
+        if (answeredByModel) payload.answered_by_model = answeredByModel;
         await supabase.from('messages').insert(payload);
-        console.log(`[${requestId}] saved assistant msg from ${answeredByModel || selectedModel}, len=${result.content.length} search=${result.usedSearch}`);
+        console.log(`[${requestId}] saved assistant msg from ${answeredByModel}, len=${result.content.length} search=${result.usedSearch}`);
 
         return new Response(JSON.stringify({
           content: result.content,
-          usedSearch: result.usedSearch,
+          usedSearch: true,
           sources: result.sources,
           answeredByModel,
         }), { headers: { 'Content-Type': 'application/json' } });
       }
 
-      // Probe didn't search — fall through to use user's selected model
-      console.log(`[${requestId}] probe did not search, using selected model ${selectedModel}`);
+      // Search tool wasn't invoked — fall through to selected model
+      console.log(`[${requestId}] search tool not invoked, using selected model ${selectedModel}`);
     }
 
-    // Normal flow: call the selected model (with tools if it supports them)
-    console.log(`[${requestId}] calling ${answerModel} ${selectedSupportsTools ? 'with tools' : 'without tools'}...`);
-    const r1 = await callNvidia(msgs, selectedSupportsTools ? makeTools() : undefined, answerModel);
+    // Normal flow: call the selected model WITHOUT tools (search only runs when forceSearch=true)
+    console.log(`[${requestId}] calling ${answerModel} without tools...`);
+    const r1 = await callNvidia(msgs, undefined, answerModel);
     if (!r1.ok) {
       console.log(`[${requestId}] call failed: ${r1.error}`);
       return new Response(JSON.stringify({ error: r1.error }), { status: 200, headers: { 'Content-Type': 'application/json' } });

@@ -39,7 +39,7 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
           if (item.role === 'assistant' && !item.content) return null;
-          return <MessageBubble role={item.role} content={item.content || ''} sources={item.sources} answeredByModel={item.answered_by_model} chatModel={chatModel} />;
+          return <MessageBubble role={item.role} content={item.content || ''} sources={item.sources} answeredByModel={item.answered_by_model} chatModel={chatModel} webSearch={item.used_web_search} />;
         }}
         contentContainerStyle={[s.list, messages.length === 0 && s.listEmpty]}
         ListEmptyComponent={
