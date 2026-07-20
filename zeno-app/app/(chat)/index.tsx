@@ -217,6 +217,10 @@ export default function ChatListScreen() {
           setSendError(null);
           setSidebarVisible(false);
         }}
+        onRenameChat={(chatId, newTitle) => {
+          setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title: newTitle } : c));
+          setActiveChat((prev) => prev?.id === chatId ? { ...prev, title: newTitle } : prev);
+        }}
       />
     </View>
   );

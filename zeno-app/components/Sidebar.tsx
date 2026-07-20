@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Animated, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import { Plus, MessageSquare, X, LogOut } from 'lucide-react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, FlatList, Animated, StyleSheet, Alert, ActivityIndicator, TextInput } from 'react-native';
+import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Chat } from '../lib/types';
@@ -13,6 +13,7 @@ type Props = {
   onSelectChat?: (chat: Chat) => void;
   chatsLoading?: boolean;
   activeChatId?: string | null;
+  onRenameChat?: (chatId: string, newTitle: string) => void;
 };
 
 const SIDEBAR_WIDTH = 300;
@@ -32,9 +33,12 @@ function formatTime(dateStr: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSelectChat, chatsLoading, activeChatId }: Props) {
+export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSelectChat, chatsLoading, activeChatId, onRenameChat }: Props) {
   const router = useRouter();
   const translateX = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
+  const [renameText, setRenameText] = useState('');
+  const renameInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     Animated.timing(translateX, {
@@ -42,6 +46,10 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
       duration: 250,
       useNativeDriver: true,
     }).start();
+    if (!visible) {
+      setRenamingChatId(null);
+      setRenameText('');
+    }
   }, [visible]);
 
   async function signOut() {
@@ -49,11 +57,37 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
     router.replace('/(auth)/sign-in');
   }
 
-  function handleLongPress(chat: Chat) {
+  function startRename(chat: Chat) {
+    setRenamingChatId(chat.id);
+    setRenameText(chat.title || '');
+    setTimeout(() => renameInputRef.current?.focus(), 100);
+  }
+
+  async function saveRename(chatId: string) {
+    const trimmed = renameText.trim();
+    if (!trimmed || trimmed === chats.find((c) => c.id === chatId)?.title) {
+      setRenamingChatId(null);
+      return;
+    }
+    const { error } = await supabase.from('chats').update({ title: trimmed }).eq('id', chatId);
+    if (error) {
+      Alert.alert('Error', 'Could not rename chat');
+      return;
+    }
+    onRenameChat?.(chatId, trimmed);
+    setRenamingChatId(null);
+  }
+
+  function cancelRename() {
+    setRenamingChatId(null);
+    setRenameText('');
+  }
+
+  function showMenu(chat: Chat) {
     Alert.alert(chat.title || 'Chat', undefined, [
       {
         text: 'Rename',
-        onPress: () => promptRename(chat),
+        onPress: () => startRename(chat),
       },
       {
         text: 'Delete',
@@ -62,26 +96,6 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
       },
       { text: 'Cancel', style: 'cancel' },
     ]);
-  }
-
-  function promptRename(chat: Chat) {
-    Alert.prompt(
-      'Rename Chat',
-      'Enter a new name for this chat:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Save',
-          onPress: async (newName?: string) => {
-            if (!newName?.trim()) return;
-            const { error } = await supabase.from('chats').update({ title: newName.trim() }).eq('id', chat.id);
-            if (error) Alert.alert('Error', 'Could not rename chat');
-          },
-        },
-      ],
-      'plain-text',
-      chat.title
-    );
   }
 
   function confirmDelete(chat: Chat) {
@@ -99,6 +113,56 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
           },
         },
       ]
+    );
+  }
+
+  function renderChatItem(item: Chat) {
+    const isActive = item.id === activeChatId;
+    const isRenaming = item.id === renamingChatId;
+
+    return (
+      <TouchableOpacity
+        style={[styles.chatItem, isActive && styles.chatItemActive]}
+        onPress={() => { if (!isRenaming) onSelectChat?.(item); }}
+        onLongPress={() => showMenu(item)}
+        activeOpacity={isRenaming ? 1 : 0.6}
+      >
+        <MessageSquare size={15} color={isActive ? '#5b9aff' : '#5a5a7a'} />
+        <View style={styles.chatItemContent}>
+          {isRenaming ? (
+            <View style={styles.renameRow}>
+              <TextInput
+                ref={renameInputRef}
+                style={styles.renameInput}
+                value={renameText}
+                onChangeText={setRenameText}
+                onSubmitEditing={() => saveRename(item.id)}
+                onBlur={() => saveRename(item.id)}
+                selectTextOnFocus
+                autoFocus
+              />
+              <TouchableOpacity onPress={() => saveRename(item.id)} style={styles.renameAction}>
+                <Check size={16} color="#22c55e" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={cancelRename} style={styles.renameAction}>
+                <X size={16} color="#8888aa" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Text style={[styles.chatItemTitle, isActive && styles.chatItemTitleActive]} numberOfLines={1}>
+                {item.title || 'New conversation'}
+              </Text>
+              <Text style={styles.chatItemTime}>{formatTime(item.updated_at)}</Text>
+            </>
+          )}
+        </View>
+        {!isRenaming && (
+          <TouchableOpacity onPress={() => showMenu(item)} style={styles.menuButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <MoreHorizontal size={14} color="#555" />
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
     );
   }
 
@@ -131,24 +195,8 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
                 data={chats}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.chatList}
-                renderItem={({ item }) => {
-                  const isActive = item.id === activeChatId;
-                  return (
-                    <TouchableOpacity
-                      style={[styles.chatItem, isActive && styles.chatItemActive]}
-                      onPress={() => onSelectChat?.(item)}
-                      onLongPress={() => handleLongPress(item)}
-                    >
-                      <MessageSquare size={15} color={isActive ? '#5b9aff' : '#5a5a7a'} />
-                      <View style={styles.chatItemContent}>
-                        <Text style={[styles.chatItemTitle, isActive && styles.chatItemTitleActive]} numberOfLines={1}>
-                          {item.title || 'New conversation'}
-                        </Text>
-                        <Text style={styles.chatItemTime}>{formatTime(item.updated_at)}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                }}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item }) => renderChatItem(item)}
               />
             )}
 
@@ -246,6 +294,28 @@ const styles = StyleSheet.create({
   chatItemTime: {
     color: '#555',
     fontSize: 11,
+  },
+  menuButton: {
+    padding: 4,
+  },
+  renameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  renameInput: {
+    flex: 1,
+    backgroundColor: '#1a1a2e',
+    color: '#e0e0e5',
+    fontSize: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+  },
+  renameAction: {
+    padding: 4,
   },
   signOutButton: {
     flexDirection: 'row',
