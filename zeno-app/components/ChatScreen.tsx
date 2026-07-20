@@ -1,5 +1,5 @@
-import { useRef, useEffect } from 'react';
-import { FlatList, View, StyleSheet, Text, Pressable, Animated, useColorScheme } from 'react-native';
+import { useRef, useEffect, useCallback } from 'react';
+import { FlatList, View, StyleSheet, Text, Pressable, Animated, Easing, useColorScheme } from 'react-native';
 import { X, Sparkles } from 'lucide-react-native';
 import { Message } from '../lib/types';
 import MessageBubble from './MessageBubble';
@@ -16,12 +16,50 @@ type Props = {
   onWebGlobePress?: () => void;
 };
 
-function FadeInView({ children, index }: { children: React.ReactNode; index: number }) {
-  const opacity = useRef(new Animated.Value(0)).current;
+const ANIM_DURATION = 200;
+
+function FadeSlideView({ children, index }: { children: React.ReactNode; index: number }) {
+  const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(opacity, { toValue: 1, duration: 250, delay: index * 40, useNativeDriver: true }).start();
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: ANIM_DURATION,
+      delay: index * 30,
+      useNativeDriver: true,
+      easing: Easing.out(Easing.ease),
+    }).start();
   }, []);
-  return <Animated.View style={{ opacity }}>{children}</Animated.View>;
+  return (
+    <Animated.View style={{
+      opacity: anim,
+      transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+    }}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function ErrorBar({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  const colors = useColors();
+  const scheme = useColorScheme();
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(opacity, { toValue: 1, duration: ANIM_DURATION, useNativeDriver: true }).start();
+  }, []);
+
+  function handleDismiss() {
+    Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => onDismiss());
+  }
+
+  return (
+    <Animated.View style={[s.errorBar, { opacity, backgroundColor: scheme === 'dark' ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.06)', borderColor: scheme === 'dark' ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.15)' }]}>
+      <Text style={[s.errorText, { color: colors.danger }]} numberOfLines={2}>{message}</Text>
+      <Pressable onPress={handleDismiss} style={s.errorDismiss}>
+        <X size={18} color={colors.danger} />
+      </Pressable>
+    </Animated.View>
+  );
 }
 
 export default function ChatScreen({ messages = [], onSend, sending, sendError, onDismissError, chatModel, onWebGlobePress }: Props) {
@@ -30,23 +68,20 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
   const t = typography(colors);
   const hasPendingAssistant = messages.some((m) => m.role === 'assistant' && !m.content);
   const listRef = useRef<FlatList>(null);
+  const prevLen = useRef(0);
 
   useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    if (messages.length > prevLen.current) {
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
     }
+    prevLen.current = messages.length;
   }, [messages.length]);
 
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
-      {sendError ? (
-        <View style={[s.errorBar, { backgroundColor: scheme === 'dark' ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.06)', borderColor: scheme === 'dark' ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.15)' }]}>
-          <Text style={[s.errorText, { color: colors.danger }]} numberOfLines={2}>{sendError}</Text>
-          <Pressable onPress={onDismissError} style={s.errorDismiss}>
-            <X size={18} color={colors.danger} />
-          </Pressable>
-        </View>
-      ) : null}
+      {sendError && (
+        <ErrorBar message={sendError} onDismiss={onDismissError || (() => {})} />
+      )}
       <FlatList
         ref={listRef}
         data={messages}
@@ -55,9 +90,9 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
         renderItem={({ item, index }) => {
           if (item.role === 'assistant' && !item.content) return null;
           return (
-            <FadeInView index={index}>
+            <FadeSlideView index={index}>
               <MessageBubble role={item.role} content={item.content || ''} sources={item.sources} answeredByModel={item.answered_by_model} chatModel={chatModel} webSearch={item.used_web_search} />
-            </FadeInView>
+            </FadeSlideView>
           );
         }}
         contentContainerStyle={[s.list, messages.length === 0 && s.listEmpty]}

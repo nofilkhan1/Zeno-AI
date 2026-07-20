@@ -24,22 +24,33 @@ export default function ActionDialog({ visible, title, message, actions, onClose
   const scale = useRef(new Animated.Value(0)).current;
   const fade = useRef(new Animated.Value(0)).current;
 
+  const closing = useRef(false);
+
   useEffect(() => {
     if (visible) {
+      closing.current = false;
       Animated.parallel([
         Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true }),
         Animated.spring(scale, { toValue: 1, friction: 8, tension: 100, useNativeDriver: true }),
       ]).start();
-    } else {
+    } else if (!closing.current) {
       scale.setValue(0);
       fade.setValue(0);
     }
   }, [visible]);
 
+  function handleClose() {
+    closing.current = true;
+    Animated.parallel([
+      Animated.timing(fade, { toValue: 0, duration: 150, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 0.8, duration: 150, useNativeDriver: true }),
+    ]).start(() => onClose());
+  }
+
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
       <Animated.View style={[s.overlay, { backgroundColor: colors.dialogOverlay, opacity: fade }]}>
-        <Pressable style={s.overlayPress} onPress={onClose} />
+        <Pressable style={s.overlayPress} onPress={handleClose} />
         <Animated.View style={[s.dialog, { backgroundColor: colors.dialogBg, borderColor: colors.composerBorder, transform: [{ scale }] }]}>
           <Text style={[t.bodyMedium, s.title]}>{title}</Text>
           {message && <Text style={[t.body, s.message]}>{message}</Text>}
@@ -52,7 +63,7 @@ export default function ActionDialog({ visible, title, message, actions, onClose
                   i < actions.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.composerBorder },
                   pressed && { opacity: 0.6 },
                 ]}
-                onPress={() => { onClose(); a.onPress(); }}
+                onPress={() => { handleClose(); a.onPress(); }}
               >
                 <Text style={[
                   t.bodyMedium,

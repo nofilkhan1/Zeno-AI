@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, FlatList, Animated, StyleSheet, ActivityIndicator, TextInput, Pressable, useColorScheme } from 'react-native';
+import { View, Text, FlatList, Animated, Easing, StyleSheet, ActivityIndicator, TextInput, Pressable, useColorScheme } from 'react-native';
 import ActionDialog from './ActionDialog';
 import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -40,6 +40,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
   const colors = useColors();
   const scheme = useColorScheme();
   const tx = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
   const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState('');
   const [menuChat, setMenuChat] = useState<Chat | null>(null);
@@ -48,7 +49,11 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
   const t = typography(colors);
 
   useEffect(() => {
-    Animated.timing(tx, { toValue: visible ? 0 : -SIDEBAR_WIDTH, duration: 220, useNativeDriver: true }).start();
+    const duration = 200;
+    Animated.parallel([
+      Animated.timing(tx, { toValue: visible ? 0 : -SIDEBAR_WIDTH, duration, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.timing(overlayOpacity, { toValue: visible ? 1 : 0, duration, useNativeDriver: true }),
+    ]).start();
     if (!visible) { setRenamingChatId(null); setRenameText(''); }
   }, [visible]);
 
@@ -138,7 +143,8 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
   return (
     <>
       {visible && (
-        <Pressable style={[s.overlay, { backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.2)' }]} onPress={onClose}>
+        <Animated.View style={[s.overlay, { backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.2)', opacity: overlayOpacity }]}>
+          <Pressable style={s.overlayPress} onPress={onClose} />
           <Animated.View style={[s.sidebar, { backgroundColor: colors.sidebarBg }, softShadow(), { transform: [{ translateX: tx }] }]}>
             <View style={s.header}>
               <Text style={t.title}>Zeno</Text>
@@ -171,7 +177,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
               <Text style={[t.body, { color: colors.danger }]}>Sign out</Text>
             </Pressable>
           </Animated.View>
-        </Pressable>
+        </Animated.View>
       )}
 
       <ActionDialog
@@ -200,6 +206,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
 
 const s = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFill, zIndex: 100 },
+  overlayPress: { ...StyleSheet.absoluteFill },
   sidebar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: SIDEBAR_WIDTH, paddingTop: 56 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 16 },
   closeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

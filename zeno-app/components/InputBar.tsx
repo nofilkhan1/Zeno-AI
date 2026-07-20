@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import { View, TextInput, StyleSheet, Animated, Easing, Pressable, useColorScheme } from 'react-native';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { View, TextInput, StyleSheet, Animated, Easing, Pressable, Platform } from 'react-native';
 import { Send, Globe } from 'lucide-react-native';
-import { useColors, typography, radii, softShadow } from '../lib/theme';
+import { useColors, radii, softShadow } from '../lib/theme';
 
 type Props = {
   onSend: (text: string) => void;
@@ -48,12 +48,30 @@ const td = StyleSheet.create({
 export default function InputBar({ onSend, disabled, onGlobePress }: Props) {
   const colors = useColors();
   const [text, setText] = useState('');
+  const textRef = useRef('');
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
 
-  function handleSend() {
-    const trimmed = text.trim();
-    if (!trimmed || disabled) return;
+  const handleSend = useCallback(() => {
+    const trimmed = textRef.current.trim();
+    if (!trimmed || disabledRef.current) return;
     onSend(trimmed);
     setText('');
+    textRef.current = '';
+  }, [onSend]);
+
+  function handleChangeText(val: string) {
+    textRef.current = val;
+    setText(val);
+  }
+
+  function handleKeyPress(e: any) {
+    if (e.nativeEvent.key === 'Enter') {
+      const isShift = Platform.OS === 'web' ? e.nativeEvent.shiftKey : false;
+      if (!isShift) {
+        handleSend();
+      }
+    }
   }
 
   return (
@@ -75,7 +93,8 @@ export default function InputBar({ onSend, disabled, onGlobePress }: Props) {
             placeholder="Message Zeno…"
             placeholderTextColor={colors.textMuted}
             value={text}
-            onChangeText={setText}
+            onChangeText={handleChangeText}
+            onKeyPress={handleKeyPress}
             multiline
             editable={!disabled}
           />
