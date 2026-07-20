@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Slot } from 'expo-router';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -31,9 +30,5 @@ export function useAuth() {
 export default function RootLayout() {
   const { session, loading } = useAuth();
 
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <Slot />
-    </GestureHandlerRootView>
-  );
+  return <Slot />;
 }
