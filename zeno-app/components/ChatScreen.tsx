@@ -42,6 +42,7 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
           const isThinking = item.role === 'assistant' && !item.content;
           if (isThinking) return null;
