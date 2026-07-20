@@ -1,10 +1,15 @@
+export type Source = {
+  title: string;
+  url: string;
+};
+
 export type Message = {
   id: string;
   chat_id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   used_web_search?: boolean;
-  sources?: Record<string, unknown> | null;
+  sources?: Source[] | null;
   created_at: string;
 };
 

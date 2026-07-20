@@ -56,7 +56,7 @@ export default function ChatListScreen() {
 
     const { data, error } = await supabase
       .from('chats')
-      .insert({ user_id: user.id, model: 'meta/llama-3.3-70b-instruct' })
+      .insert({ user_id: user.id, model: MODELS[0].id })
       .select()
       .single();
 
@@ -119,33 +119,22 @@ export default function ChatListScreen() {
         signal: abortRef.current.signal,
       });
 
-      if (!response.ok) {
-        const errData = await response.text();
-        throw new Error(errData || `HTTP ${response.status}`);
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || `HTTP ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        const fullText = await response.text();
-        setMessages((prev) =>
-          prev.map((m) => m.id === assistantId ? { ...m, content: fullText } : m)
-        );
-        return;
-      }
-
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const textChunk = decoder.decode(value, { stream: true });
-        setMessages((prev) =>
-          prev.map((m) => m.id === assistantId ? { ...m, content: m.content + textChunk } : m)
-        );
-      }
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? { ...m, content: data.content || '', sources: data.sources || [] }
+            : m
+        )
+      );
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
 
-      // If we got partial content, keep it — Edge Function saves whatever it had
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId && !m.content

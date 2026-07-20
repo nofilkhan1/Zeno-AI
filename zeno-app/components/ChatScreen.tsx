@@ -20,6 +20,7 @@ export default function ChatScreen({ messages = [], onSend }: Props) {
           <MessageBubble
             role={item.role}
             content={item.content || (streaming ? '▊' : '')}
+            sources={item.sources}
           />
         )}
         contentContainerStyle={styles.list}
