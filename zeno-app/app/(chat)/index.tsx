@@ -14,8 +14,11 @@ export default function ChatListScreen() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
+  const [chatsLoading, setChatsLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -29,6 +32,7 @@ export default function ChatListScreen() {
   }, [activeChat?.id]);
 
   async function loadChats() {
+    setChatsLoading(true);
     const { data } = await supabase
       .from('chats')
       .select('*')
@@ -39,15 +43,18 @@ export default function ChatListScreen() {
         setActiveChat(data[0]);
       }
     }
+    setChatsLoading(false);
   }
 
   async function loadMessages(chatId: string) {
+    setMessagesLoading(true);
     const { data } = await supabase
       .from('messages')
       .select('*')
       .eq('chat_id', chatId)
       .order('created_at', { ascending: true });
     if (data) setMessages(data);
+    setMessagesLoading(false);
   }
 
   const handleNewChat = useCallback(async () => {
@@ -68,6 +75,7 @@ export default function ChatListScreen() {
     setActiveChat(data);
     setMessages([]);
     setChats((prev) => [data, ...prev]);
+    setSendError(null);
     setSidebarVisible(false);
   }, []);
 
@@ -81,6 +89,7 @@ export default function ChatListScreen() {
     if (!activeChat || sending) return;
 
     setSending(true);
+    setSendError(null);
 
     const userMsg: Message = {
       id: crypto.randomUUID(),
@@ -132,13 +141,19 @@ export default function ChatListScreen() {
             : m
         )
       );
+
+      loadMessages(activeChat.id);
+      loadChats();
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
+
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      setSendError(errorMsg);
 
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId && !m.content
-            ? { ...m, content: 'Sorry, an error occurred while generating a response.' }
+            ? { ...m, content: `Error: ${errorMsg}` }
             : m
         )
       );
@@ -159,14 +174,22 @@ export default function ChatListScreen() {
           onSelect={handleModelSelect}
         />
       </View>
-      <ChatScreen messages={messages} onSend={handleSend} />
+      <ChatScreen
+        messages={messages}
+        onSend={handleSend}
+        sending={sending}
+        sendError={sendError}
+        onDismissError={() => setSendError(null)}
+      />
       <Sidebar
         visible={sidebarVisible}
         onClose={() => setSidebarVisible(false)}
         onNewChat={handleNewChat}
         chats={chats}
+        chatsLoading={chatsLoading}
         onSelectChat={(chat) => {
           setActiveChat(chat);
+          setSendError(null);
           setSidebarVisible(false);
         }}
       />

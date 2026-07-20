@@ -10,6 +10,24 @@ const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const TAVILY_ENDPOINT = 'https://api.tavily.com/search';
 const MODEL = 'deepseek-ai/deepseek-v4-flash';
 
+const RATE_LIMIT_WINDOW = 60_000;
+const RATE_LIMIT_MAX = 10;
+const rateMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(userId: string): { allowed: boolean; retryAfter: number } {
+  const now = Date.now();
+  const entry = rateMap.get(userId);
+  if (!entry || now >= entry.resetAt) {
+    rateMap.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return { allowed: true, retryAfter: 0 };
+  }
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return { allowed: false, retryAfter: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+  entry.count++;
+  return { allowed: true, retryAfter: 0 };
+}
+
 function makeTools() {
   return [{
     type: 'function' as const,
@@ -31,6 +49,29 @@ async function callNvidia(messages: unknown[], tools?: unknown[]) {
   });
 }
 
+async function generateTitle(userMessage: string): Promise<string> {
+  try {
+    const res = await fetch(NVIDIA_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${nvidiaApiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: 'Summarize this message as a short title (max 6 words, no quotes, no punctuation). Reply with only the title.' },
+          { role: 'user', content: userMessage },
+        ],
+        stream: false,
+      }),
+    });
+    if (!res.ok) return 'New Chat';
+    const data = await res.json();
+    const title = data.choices?.[0]?.message?.content?.trim() || 'New Chat';
+    return title.length > 60 ? title.slice(0, 60) : title;
+  } catch {
+    return 'New Chat';
+  }
+}
+
 Deno.serve(async (req) => {
   try {
     const { chatId, message } = await req.json();
@@ -44,7 +85,20 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
+    const { allowed, retryAfter } = checkRateLimit(user.id);
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: `Rate limited. Try again in ${retryAfter}s.` }), { status: 429, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    const { data: existingMsgs } = await supabase.from('messages').select('id').eq('chat_id', chatId).limit(1);
+    const isFirstMessage = !existingMsgs || existingMsgs.length === 0;
+
     await supabase.from('messages').insert({ chat_id: chatId, role: 'user', content: message });
+
+    if (isFirstMessage) {
+      const title = await generateTitle(message);
+      await supabase.from('chats').update({ title }).eq('id', chatId);
+    }
 
     const { data: history } = await supabase.from('messages').select('role, content').eq('chat_id', chatId).order('created_at');
     const msgs = (history || []).map((m) => ({ role: m.role, content: m.content }));
@@ -114,6 +168,6 @@ Deno.serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message, stack: err.stack }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 });

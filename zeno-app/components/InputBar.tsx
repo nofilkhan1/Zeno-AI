@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Send } from 'lucide-react-native';
 
 type Props = {
   onSend: (text: string) => void;
+  disabled?: boolean;
 };
 
-export default function InputBar({ onSend }: Props) {
+export default function InputBar({ onSend, disabled }: Props) {
   const [text, setText] = useState('');
 
   function handleSend() {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed || disabled) return;
     onSend(trimmed);
     setText('');
   }
@@ -25,9 +26,10 @@ export default function InputBar({ onSend }: Props) {
         value={text}
         onChangeText={setText}
         multiline
+        editable={!disabled}
       />
-      <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
-        <Send size={20} color="#fff" />
+      <TouchableOpacity style={[styles.sendButton, disabled && styles.sendButtonDisabled]} onPress={handleSend} disabled={disabled}>
+        {disabled ? <ActivityIndicator size="small" color="#fff" /> : <Send size={20} color="#fff" />}
       </TouchableOpacity>
     </View>
   );
@@ -60,5 +62,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#1a3a5c',
   },
 });

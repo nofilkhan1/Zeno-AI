@@ -1,4 +1,5 @@
-import { FlatList, View, StyleSheet, Text } from 'react-native';
+import { FlatList, View, StyleSheet, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { X } from 'lucide-react-native';
 import { Message } from '../lib/types';
 import MessageBubble from './MessageBubble';
 import InputBar from './InputBar';
@@ -6,13 +7,24 @@ import InputBar from './InputBar';
 type Props = {
   messages?: Message[];
   onSend?: (text: string) => void;
+  sending?: boolean;
+  sendError?: string | null;
+  onDismissError?: () => void;
 };
 
-export default function ChatScreen({ messages = [], onSend }: Props) {
+export default function ChatScreen({ messages = [], onSend, sending, sendError, onDismissError }: Props) {
   const streaming = messages.some((m) => m.role === 'assistant' && !m.content);
 
   return (
     <View style={styles.container}>
+      {sendError ? (
+        <View style={styles.errorBar}>
+          <Text style={styles.errorText} numberOfLines={2}>{sendError}</Text>
+          <TouchableOpacity onPress={onDismissError}>
+            <X size={18} color="#ff6b6b" />
+          </TouchableOpacity>
+        </View>
+      ) : null}
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}
@@ -23,14 +35,15 @@ export default function ChatScreen({ messages = [], onSend }: Props) {
             sources={item.sources}
           />
         )}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, messages.length === 0 && styles.listEmpty]}
         ListEmptyComponent={
           <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>Zeno</Text>
             <Text style={styles.emptyText}>Start a conversation</Text>
           </View>
         }
       />
-      <InputBar onSend={(text) => onSend?.(text)} />
+      <InputBar onSend={(text) => onSend?.(text)} disabled={sending} />
     </View>
   );
 }
@@ -40,14 +53,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0f0f1a',
   },
+  errorBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    marginHorizontal: 12,
+    marginTop: 8,
+    backgroundColor: '#2a1a1a',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4a2a2a',
+  },
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: 13,
+    flex: 1,
+  },
   list: {
-    flexGrow: 1,
     paddingVertical: 12,
   },
-  empty: {
-    flex: 1,
+  listEmpty: {
+    flexGrow: 1,
     justifyContent: 'center',
+  },
+  empty: {
     alignItems: 'center',
+    gap: 8,
+  },
+  emptyTitle: {
+    color: '#f0f0f5',
+    fontSize: 28,
+    fontWeight: 'bold',
   },
   emptyText: {
     color: '#666',
