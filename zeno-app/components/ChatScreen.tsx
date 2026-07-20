@@ -1,8 +1,10 @@
-import { FlatList, View, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { X, Sparkles, Brain } from 'lucide-react-native';
+import { FlatList, View, StyleSheet, Text, Pressable, useColorScheme } from 'react-native';
+import { X, Sparkles } from 'lucide-react-native';
 import { Message } from '../lib/types';
 import MessageBubble from './MessageBubble';
 import InputBar from './InputBar';
+import ModeTabs from './ModeTabs';
+import { useColors, typography, radii } from '../lib/theme';
 
 type Props = {
   messages?: Message[];
@@ -10,135 +12,70 @@ type Props = {
   sending?: boolean;
   sendError?: string | null;
   onDismissError?: () => void;
+  chatModel?: string;
+  forceSearch?: boolean;
+  onForceSearchChange?: (v: boolean) => void;
 };
 
-function ThinkingIndicator() {
-  return (
-    <View style={styles.thinkingContainer}>
-      <Brain size={16} color="#5b9aff" />
-      <Text style={styles.thinkingText}>Thinking…</Text>
-    </View>
-  );
-}
-
-export default function ChatScreen({ messages = [], onSend, sending, sendError, onDismissError }: Props) {
+export default function ChatScreen({ messages = [], onSend, sending, sendError, onDismissError, chatModel, forceSearch, onForceSearchChange }: Props) {
+  const colors = useColors();
+  const scheme = useColorScheme();
+  const t = typography(colors);
   const hasPendingAssistant = messages.some((m) => m.role === 'assistant' && !m.content);
 
   return (
-    <View style={styles.container}>
+    <View style={[s.container, { backgroundColor: colors.bg }]}>
       {sendError ? (
-        <View style={styles.errorBar}>
-          <Text style={styles.errorText} numberOfLines={2}>{sendError}</Text>
-          <TouchableOpacity onPress={onDismissError} style={styles.errorDismiss}>
-            <X size={16} color="#ff6b6b" />
-          </TouchableOpacity>
+        <View style={[s.errorBar, { backgroundColor: scheme === 'dark' ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.06)', borderColor: scheme === 'dark' ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.15)' }]}>
+          <Text style={[s.errorText, { color: colors.danger }]} numberOfLines={2}>{sendError}</Text>
+          <Pressable onPress={onDismissError} style={s.errorDismiss}>
+            <X size={18} color={colors.danger} />
+          </Pressable>
         </View>
       ) : null}
-      {hasPendingAssistant && (
-        <View style={styles.thinkingBar}>
-          <ThinkingIndicator />
-        </View>
-      )}
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
-          const isThinking = item.role === 'assistant' && !item.content;
-          if (isThinking) return null;
-          return (
-            <MessageBubble
-              role={item.role}
-              content={item.content || ''}
-              sources={item.sources}
-            />
-          );
+          if (item.role === 'assistant' && !item.content) return null;
+          return <MessageBubble role={item.role} content={item.content || ''} sources={item.sources} answeredByModel={item.answered_by_model} chatModel={chatModel} />;
         }}
-        contentContainerStyle={[styles.list, messages.length === 0 && styles.listEmpty]}
+        contentContainerStyle={[s.list, messages.length === 0 && s.listEmpty]}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <View style={styles.emptyIcon}>
-              <Sparkles size={32} color="#5b9aff" />
+          <View style={s.empty}>
+            <Sparkles size={36} color={colors.accent} />
+            <Text style={[t.title, { marginTop: 16, color: colors.textPrimary, textAlign: 'center' }]}>How can I help you today?</Text>
+            <View style={{ marginTop: 20 }}>
+              <ModeTabs active={forceSearch ? 'search' : 'normal'} onChange={(mode) => onForceSearchChange?.(mode === 'search')} />
             </View>
-            <Text style={styles.emptyTitle}>Zeno</Text>
-            <Text style={styles.emptyText}>Start a conversation</Text>
           </View>
         }
       />
-      <InputBar onSend={(text) => onSend?.(text)} disabled={sending} />
+      {hasPendingAssistant && (
+        <View style={[s.thinkingBar, { backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: colors.composerBorder }]}>
+          <Sparkles size={16} color={colors.accent} />
+          <Text style={[s.thinkingText, { color: colors.textMuted }]}>Thinking…</Text>
+        </View>
+      )}
+      <InputBar
+        onSend={(text) => onSend?.(text)}
+        disabled={sending}
+        forceSearch={forceSearch}
+        onForceSearchToggle={() => onForceSearchChange?.(!forceSearch)}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0f0f1a',
-  },
-  errorBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginHorizontal: 14,
-    marginTop: 8,
-    backgroundColor: '#1e1414',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#3a1e1e',
-  },
-  errorText: {
-    color: '#ff6b6b',
-    fontSize: 14,
-    flex: 1,
-    lineHeight: 20,
-  },
-  errorDismiss: {
-    padding: 4,
-  },
-  thinkingBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-  },
-  thinkingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  thinkingText: {
-    color: '#5b9aff',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  list: {
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-  listEmpty: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  empty: {
-    alignItems: 'center',
-    gap: 12,
-  },
-  emptyIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#1a1a30',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyTitle: {
-    color: '#f0f0f5',
-    fontSize: 26,
-    fontWeight: '700',
-  },
-  emptyText: {
-    color: '#555',
-    fontSize: 15,
-  },
+const s = StyleSheet.create({
+  container: { flex: 1 },
+  errorBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 14, marginTop: 8, borderRadius: radii.sm, borderWidth: 1 },
+  errorText: { fontSize: 14, flex: 1, lineHeight: 20, fontFamily: 'Inter_400Regular' },
+  errorDismiss: { padding: 8 },
+  thinkingBar: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 14, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.sm, borderWidth: 1 },
+  thinkingText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
+  list: { paddingTop: 8, paddingBottom: 8 },
+  listEmpty: { flexGrow: 1, justifyContent: 'center' },
+  empty: { alignItems: 'center', paddingHorizontal: 24 },
 });

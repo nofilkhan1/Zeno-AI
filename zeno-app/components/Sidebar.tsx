@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Animated, StyleSheet, Alert, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, FlatList, Animated, StyleSheet, ActivityIndicator, TextInput, Pressable, useColorScheme } from 'react-native';
+import ActionDialog from './ActionDialog';
 import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Chat } from '../lib/types';
+import { useColors, typography, radii, softShadow, hitSlop } from '../lib/theme';
 
 type Props = {
   visible: boolean;
@@ -35,21 +37,19 @@ function formatTime(dateStr: string): string {
 
 export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSelectChat, chatsLoading, activeChatId, onRenameChat }: Props) {
   const router = useRouter();
-  const translateX = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const colors = useColors();
+  const scheme = useColorScheme();
+  const tx = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState('');
+  const [menuChat, setMenuChat] = useState<Chat | null>(null);
+  const [deleteChat, setDeleteChat] = useState<Chat | null>(null);
   const renameInputRef = useRef<TextInput>(null);
+  const t = typography(colors);
 
   useEffect(() => {
-    Animated.timing(translateX, {
-      toValue: visible ? 0 : -SIDEBAR_WIDTH,
-      duration: 250,
-      useNativeDriver: true,
-    }).start();
-    if (!visible) {
-      setRenamingChatId(null);
-      setRenameText('');
-    }
+    Animated.timing(tx, { toValue: visible ? 0 : -SIDEBAR_WIDTH, duration: 220, useNativeDriver: true }).start();
+    if (!visible) { setRenamingChatId(null); setRenameText(''); }
   }, [visible]);
 
   async function signOut() {
@@ -58,62 +58,29 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
   }
 
   function startRename(chat: Chat) {
-    setRenamingChatId(chat.id);
-    setRenameText(chat.title || '');
+    setRenamingChatId(chat.id); setRenameText(chat.title || '');
     setTimeout(() => renameInputRef.current?.focus(), 100);
   }
 
   async function saveRename(chatId: string) {
     const trimmed = renameText.trim();
-    if (!trimmed || trimmed === chats.find((c) => c.id === chatId)?.title) {
-      setRenamingChatId(null);
-      return;
-    }
+    if (!trimmed || trimmed === chats.find((c) => c.id === chatId)?.title) { setRenamingChatId(null); return; }
     const { error } = await supabase.from('chats').update({ title: trimmed }).eq('id', chatId);
-    if (error) {
-      Alert.alert('Error', 'Could not rename chat');
-      return;
-    }
+    if (error) { console.log('Rename error', error); return; }
     onRenameChat?.(chatId, trimmed);
     setRenamingChatId(null);
   }
 
-  function cancelRename() {
-    setRenamingChatId(null);
-    setRenameText('');
-  }
+  function cancelRename() { setRenamingChatId(null); setRenameText(''); }
 
   function showMenu(chat: Chat) {
-    Alert.alert(chat.title || 'Chat', undefined, [
-      {
-        text: 'Rename',
-        onPress: () => startRename(chat),
-      },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => confirmDelete(chat),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setMenuChat(chat);
   }
 
-  function confirmDelete(chat: Chat) {
-    Alert.alert(
-      'Delete Chat',
-      `Are you sure you want to delete "${chat.title || 'Untitled'}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.from('messages').delete().eq('chat_id', chat.id);
-            await supabase.from('chats').delete().eq('id', chat.id);
-          },
-        },
-      ]
-    );
+  async function execDelete(chat: Chat) {
+    await supabase.from('messages').delete().eq('chat_id', chat.id);
+    await supabase.from('chats').delete().eq('id', chat.id);
+    setDeleteChat(null);
   }
 
   function renderChatItem(item: Chat) {
@@ -121,214 +88,127 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
     const isRenaming = item.id === renamingChatId;
 
     return (
-      <TouchableOpacity
-        style={[styles.chatItem, isActive && styles.chatItemActive]}
+      <Pressable
+        style={({ pressed }) => [
+          s.chatItem,
+          isActive && { backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' },
+          pressed && !isActive && { opacity: 0.7 },
+        ]}
         onPress={() => { if (!isRenaming) onSelectChat?.(item); }}
         onLongPress={() => showMenu(item)}
-        activeOpacity={isRenaming ? 1 : 0.6}
       >
-        <MessageSquare size={15} color={isActive ? '#5b9aff' : '#5a5a7a'} />
-        <View style={styles.chatItemContent}>
+        <MessageSquare size={18} color={isActive ? colors.accent : colors.textMuted} />
+        <View style={s.chatItemContent}>
           {isRenaming ? (
-            <View style={styles.renameRow}>
+            <View style={s.renameRow}>
               <TextInput
                 ref={renameInputRef}
-                style={styles.renameInput}
+                style={[s.renameInput, { color: colors.textPrimary, borderColor: colors.accent }]}
                 value={renameText}
                 onChangeText={setRenameText}
                 onSubmitEditing={() => saveRename(item.id)}
                 onBlur={() => saveRename(item.id)}
-                selectTextOnFocus
-                autoFocus
+                selectTextOnFocus autoFocus
               />
-              <TouchableOpacity onPress={() => saveRename(item.id)} style={styles.renameAction}>
-                <Check size={16} color="#22c55e" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={cancelRename} style={styles.renameAction}>
-                <X size={16} color="#8888aa" />
-              </TouchableOpacity>
+              <Pressable onPress={() => saveRename(item.id)} hitSlop={hitSlop}>
+                <Check size={16} color={colors.accent} />
+              </Pressable>
+              <Pressable onPress={cancelRename} hitSlop={hitSlop}>
+                <X size={16} color={colors.textMuted} />
+              </Pressable>
             </View>
           ) : (
             <>
-              <Text style={[styles.chatItemTitle, isActive && styles.chatItemTitleActive]} numberOfLines={1}>
+              <Text style={[t.bodyMedium, { color: isActive ? colors.textPrimary : colors.textMuted }]} numberOfLines={1}>
                 {item.title || 'New conversation'}
               </Text>
-              <Text style={styles.chatItemTime}>{formatTime(item.updated_at)}</Text>
+              <Text style={[t.caption, { marginTop: 2 }]}>{formatTime(item.updated_at)}</Text>
             </>
           )}
         </View>
         {!isRenaming && (
-          <TouchableOpacity onPress={() => showMenu(item)} style={styles.menuButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <MoreHorizontal size={14} color="#555" />
-          </TouchableOpacity>
+          <Pressable onPress={() => showMenu(item)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <MoreHorizontal size={16} color={colors.textMuted} />
+          </Pressable>
         )}
-      </TouchableOpacity>
+      </Pressable>
     );
   }
 
   return (
     <>
       {visible && (
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
-          <Animated.View
-            style={[styles.sidebar, { transform: [{ translateX }] }]}
-            onStartShouldSetResponder={() => true}
-          >
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>Zeno</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <X size={20} color="#8888aa" />
-              </TouchableOpacity>
+        <Pressable style={[s.overlay, { backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.2)' }]} onPress={onClose}>
+          <Animated.View style={[s.sidebar, { backgroundColor: colors.sidebarBg }, softShadow(), { transform: [{ translateX: tx }] }]}>
+            <View style={s.header}>
+              <Text style={t.title}>Zeno</Text>
+              <Pressable onPress={onClose} style={s.closeBtn} hitSlop={hitSlop}>
+                <X size={22} color={colors.textMuted} />
+              </Pressable>
             </View>
 
-            <TouchableOpacity style={styles.newChatButton} onPress={onNewChat}>
-              <Plus size={18} color="#fff" />
-              <Text style={styles.newChatText}>New conversation</Text>
-            </TouchableOpacity>
+            <Pressable
+              style={({ pressed }) => [s.newChatButton, { backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)', borderColor: colors.composerBorder }, pressed && { opacity: 0.7 }]}
+              onPress={onNewChat}
+            >
+              <Plus size={20} color={colors.accent} />
+              <Text style={[t.bodyMedium, { color: colors.textPrimary }]}>New conversation</Text>
+            </Pressable>
 
             {chatsLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#8888aa" />
+              <View style={s.loadingContainer}>
+                <ActivityIndicator size="small" color={colors.accent} />
               </View>
             ) : (
-              <FlatList
-                data={chats}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.chatList}
-                keyboardShouldPersistTaps="handled"
-                renderItem={({ item }) => renderChatItem(item)}
-              />
+              <FlatList data={chats} keyExtractor={(item) => item.id} contentContainerStyle={s.chatList} keyboardShouldPersistTaps="handled" renderItem={({ item }) => renderChatItem(item)} />
             )}
 
-            <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
-              <LogOut size={16} color="#ff6b6b" />
-              <Text style={styles.signOutText}>Sign out</Text>
-            </TouchableOpacity>
+            <Pressable
+              style={({ pressed }) => [s.signOutButton, { borderTopColor: colors.composerBorder }, pressed && { opacity: 0.7 }]}
+              onPress={signOut}
+            >
+              <LogOut size={18} color={colors.danger} />
+              <Text style={[t.body, { color: colors.danger }]}>Sign out</Text>
+            </Pressable>
           </Animated.View>
-        </TouchableOpacity>
+        </Pressable>
       )}
+
+      <ActionDialog
+        visible={!!menuChat}
+        title={menuChat?.title || 'Chat'}
+        actions={[
+          { label: 'Rename', bold: true, onPress: () => { if (menuChat) startRename(menuChat); } },
+          { label: 'Delete', destructive: true, onPress: () => setDeleteChat(menuChat) },
+        ]}
+        onClose={() => setMenuChat(null)}
+      />
+
+      <ActionDialog
+        visible={!!deleteChat}
+        title="Delete chat?"
+        message={`Delete "${deleteChat?.title || 'Untitled'}"?`}
+        actions={[
+          { label: 'Cancel', onPress: () => setDeleteChat(null) },
+          { label: 'Delete', destructive: true, onPress: () => { if (deleteChat) execDelete(deleteChat); } },
+        ]}
+        onClose={() => setDeleteChat(null)}
+      />
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    zIndex: 100,
-  },
-  sidebar: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: SIDEBAR_WIDTH,
-    backgroundColor: '#12121e',
-    paddingTop: 54,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  headerTitle: {
-    color: '#f0f0f5',
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  newChatButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#1e1e32',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2a2a44',
-  },
-  newChatText: {
-    color: '#e0e0e5',
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chatList: {
-    paddingBottom: 8,
-  },
-  chatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    marginHorizontal: 8,
-    borderRadius: 8,
-  },
-  chatItemActive: {
-    backgroundColor: '#1a1a30',
-  },
-  chatItemContent: {
-    flex: 1,
-  },
-  chatItemTitle: {
-    color: '#8888aa',
-    fontSize: 14,
-    marginBottom: 2,
-  },
-  chatItemTitleActive: {
-    color: '#e0e0e5',
-    fontWeight: '500',
-  },
-  chatItemTime: {
-    color: '#555',
-    fontSize: 11,
-  },
-  menuButton: {
-    padding: 4,
-  },
-  renameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  renameInput: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-    color: '#e0e0e5',
-    fontSize: 14,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#3b82f6',
-  },
-  renameAction: {
-    padding: 4,
-  },
-  signOutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#1e1e32',
-    marginTop: 4,
-  },
-  signOutText: {
-    color: '#ff6b6b',
-    fontSize: 14,
-  },
+const s = StyleSheet.create({
+  overlay: { ...StyleSheet.absoluteFill, zIndex: 100 },
+  sidebar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: SIDEBAR_WIDTH, paddingTop: 56 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 16 },
+  closeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  newChatButton: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginBottom: 12, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radii.sm, borderWidth: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  chatList: { paddingBottom: 8 },
+  chatItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 20, marginHorizontal: 8, borderRadius: radii.sm },
+  chatItemContent: { flex: 1 },
+  renameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  renameInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', fontSize: 16, paddingVertical: 8, paddingHorizontal: 12, borderRadius: radii.sm, borderWidth: 1, fontFamily: 'Inter_400Regular' },
+  signOutButton: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 16, paddingHorizontal: 20, borderTopWidth: 1, marginTop: 4 },
 });

@@ -12,8 +12,40 @@ const DEFAULT_MODEL = 'nvidia/nemotron-mini-4b-instruct';
 const NVIDIA_TIMEOUT = 15_000;
 
 const RATE_LIMIT_WINDOW = 60_000;
-const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_MAX = 30;
 const rateMap = new Map<string, { count: number; resetAt: number }>();
+
+// Models with verified tool/function calling support (from lib/models.ts)
+const TOOLS_CAPABLE_MODELS = [
+  'meta/llama-3.1-70b-instruct',
+  'meta/llama-3.1-8b-instruct',
+  'mistralai/mistral-small-4-119b-2603',
+  'nvidia/llama-3.3-nemotron-super-49b-v1',
+  'nvidia/nemotron-3-ultra-550b-a55b',
+  'nvidia/nemotron-nano-12b-v2-vl',
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'poolside/laguna-xs-2.1',
+];
+const TOOLS_MODEL = 'meta/llama-3.1-8b-instruct';
+
+const TOOLS_CAPABLE_SET = new Set(TOOLS_CAPABLE_MODELS);
+// Map model IDs to their user-friendly labels
+const MODEL_LABELS: Record<string, string> = {
+  'meta/llama-3.1-70b-instruct': 'Llama 3.1 70B',
+  'meta/llama-3.1-8b-instruct': 'Llama 3.1 8B',
+  'mistralai/mistral-small-4-119b-2603': 'Mistral Small 4 119B',
+  'nvidia/llama-3.3-nemotron-super-49b-v1': 'Llama 3.3 Nemotron Super 49B',
+  'nvidia/nemotron-3-ultra-550b-a55b': 'Nemotron 3 Ultra 550B',
+  'nvidia/nemotron-nano-12b-v2-vl': 'Nemotron Nano 12B VL',
+  'openai/gpt-oss-120b': 'GPT-OSS 120B',
+  'openai/gpt-oss-20b': 'GPT-OSS 20B',
+  'poolside/laguna-xs-2.1': 'Laguna XS 2.1',
+};
+
+function modelLabel(modelId: string): string {
+  return MODEL_LABELS[modelId] || modelId.split('/').pop() || modelId;
+}
 
 function checkRateLimit(userId: string): { allowed: boolean; retryAfter: number } {
   const now = Date.now();
@@ -113,11 +145,74 @@ async function generateTitle(userMessage: string): Promise<string> {
   }
 }
 
+async function runSearchFlow(
+  msgs: { role: string; content: string | null }[],
+  model: string,
+  requestId: string,
+): Promise<{ content: string; sources: { title: string; url: string }[]; usedSearch: boolean }> {
+  console.log(`[${requestId}] calling NVIDIA with tools...`);
+  const r1 = await callNvidia(msgs, makeTools(), model);
+  if (!r1.ok) {
+    console.log(`[${requestId}] first call failed: ${r1.error}`);
+    return { content: '', sources: [], usedSearch: false };
+  }
+
+  const data1 = r1.data as { choices: { message: { content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[] };
+  const choice1 = data1.choices?.[0];
+  const tc = choice1?.message?.tool_calls?.[0];
+  const reply = choice1?.message?.content || '';
+
+  console.log(`[${requestId}] response: toolCall=${!!tc} contentLen=${reply.length}`);
+
+  let finalContent = reply;
+  let usedSearch = false;
+  let sources: { title: string; url: string }[] = [];
+
+  if (tc?.function?.name === 'search_web') {
+    usedSearch = true;
+    let query = '';
+    try { query = JSON.parse(tc.function.arguments).query; } catch { query = tc.function.arguments || ''; }
+    console.log(`[${requestId}] search query="${query}"`);
+
+    const sres = await fetch(TAVILY_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: tavilyApiKey, query, search_depth: 'basic', max_results: 5 }),
+    });
+
+    if (sres.ok) {
+      const sd = await sres.json();
+      const results = sd.results || [];
+      sources = results.map((r: { title: string; url: string }) => ({ title: r.title, url: r.url }));
+      const toolContent = results.length
+        ? results.map((r: { title: string; url: string; content: string }, i: number) => `[${i + 1}] ${r.title}\n${r.url}\n${r.content}`).join('\n\n')
+        : 'No results found.';
+
+      console.log(`[${requestId}] search returned ${results.length} results`);
+
+      const toolMsgs = [
+        ...msgs,
+        { role: 'assistant', content: null, tool_calls: [{ id: tc.id, type: 'function', function: { name: 'search_web', arguments: tc.function.arguments } }] },
+        { role: 'tool', tool_call_id: tc.id, content: toolContent },
+      ];
+
+      console.log(`[${requestId}] calling NVIDIA with search results...`);
+      const r2 = await callNvidia(toolMsgs, undefined, model);
+      if (r2.ok) {
+        const d2 = r2.data as { choices: { message: { content: string } }[] };
+        finalContent = d2.choices?.[0]?.message?.content || '';
+      }
+    }
+  }
+
+  return { content: finalContent, sources, usedSearch };
+}
+
 Deno.serve(async (req) => {
   const requestId = crypto.randomUUID().slice(0, 8);
 
   try {
-    const { chatId, message } = await req.json();
+    const { chatId, message, forceSearch } = await req.json();
 
     if (!chatId || !message) {
       return new Response(JSON.stringify({ error: 'chatId and message required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
@@ -129,7 +224,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
-    console.log(`[${requestId}] user=${user.id} chat=${chatId} message="${message.slice(0, 80)}"`);
+    console.log(`[${requestId}] user=${user.id} chat=${chatId} forceSearch=${!!forceSearch} message="${message.slice(0, 80)}"`);
 
     const { allowed, retryAfter } = checkRateLimit(user.id);
     if (!allowed) {
@@ -138,8 +233,9 @@ Deno.serve(async (req) => {
     }
 
     const { data: chat } = await supabase.from('chats').select('model').eq('id', chatId).single();
-    const model = chat?.model || DEFAULT_MODEL;
-    console.log(`[${requestId}] model=${model}`);
+    const selectedModel = chat?.model || DEFAULT_MODEL;
+    const selectedSupportsTools = TOOLS_CAPABLE_SET.has(selectedModel);
+    console.log(`[${requestId}] selectedModel=${selectedModel} supportsTools=${selectedSupportsTools}`);
 
     const { data: existingMsgs } = await supabase.from('messages').select('id').eq('chat_id', chatId).limit(1);
     const isFirstMessage = !existingMsgs || existingMsgs.length === 0;
@@ -155,26 +251,54 @@ Deno.serve(async (req) => {
     const { data: history } = await supabase.from('messages').select('role, content').eq('chat_id', chatId).order('created_at');
     const msgs = (history || []).map((m) => ({ role: m.role, content: m.content }));
 
-    console.log(`[${requestId}] calling NVIDIA with tools...`);
-    const r1 = await callNvidia(msgs, makeTools(), model);
-    if (!r1.ok) {
-      console.log(`[${requestId}] first call failed: ${r1.error}`);
+    // Determine which model to use for answering
+    let answerModel = selectedModel;
+    let answeredByModel: string | undefined;
 
-      // Only retry without tools on 503 (service overload), not on timeout/bad model
-      const isServiceBusy = r1.error.includes('503') || r1.error.includes('Service Unavailable');
-      if (isServiceBusy) {
-        const fallback = await callNvidia(msgs, undefined, model);
-        if (fallback.ok) {
-          const d = fallback.data as { choices: { message: { content: string } }[] };
-          const c = d.choices?.[0]?.message?.content || '';
-          if (c) {
-            await supabase.from('messages').insert({ chat_id: chatId, role: 'assistant', content: c });
-            console.log(`[${requestId}] fallback succeeded, content=${c.slice(0, 60)}`);
-            return new Response(JSON.stringify({ content: c, usedSearch: false, sources: [] }), { headers: { 'Content-Type': 'application/json' } });
-          }
-        }
+    const needsToolsRoute = forceSearch || (selectedModel && !selectedSupportsTools);
+
+    if (needsToolsRoute) {
+      // Route through a tools-capable model for search detection
+      const toolsModel = TOOLS_MODEL;
+
+      if (forceSearch) {
+        // Manual search: always run search flow with tools-capable model
+        console.log(`[${requestId}] manual search forced, using ${toolsModel}`);
+      } else {
+        // Auto-detect: probe with tools-capable model to see if search is needed
+        console.log(`[${requestId}] probing ${toolsModel} for search need...`);
       }
 
+      const result = await runSearchFlow(msgs, toolsModel, requestId);
+
+      if (result.usedSearch) {
+        // Search was needed and completed — use tools model's answer
+        answerModel = toolsModel;
+        answeredByModel = toolsModel;
+
+        const payload: Record<string, unknown> = { chat_id: chatId, role: 'assistant', content: result.content };
+        if (result.usedSearch) { payload.used_web_search = true; payload.sources = result.sources; }
+        if (answeredByModel) { payload.answered_by_model = answeredByModel; }
+        await supabase.from('messages').insert(payload);
+        console.log(`[${requestId}] saved assistant msg from ${answeredByModel || selectedModel}, len=${result.content.length} search=${result.usedSearch}`);
+
+        return new Response(JSON.stringify({
+          content: result.content,
+          usedSearch: result.usedSearch,
+          sources: result.sources,
+          answeredByModel,
+        }), { headers: { 'Content-Type': 'application/json' } });
+      }
+
+      // Probe didn't search — fall through to use user's selected model
+      console.log(`[${requestId}] probe did not search, using selected model ${selectedModel}`);
+    }
+
+    // Normal flow: call the selected model (with tools if it supports them)
+    console.log(`[${requestId}] calling ${answerModel} ${selectedSupportsTools ? 'with tools' : 'without tools'}...`);
+    const r1 = await callNvidia(msgs, selectedSupportsTools ? makeTools() : undefined, answerModel);
+    if (!r1.ok) {
+      console.log(`[${requestId}] call failed: ${r1.error}`);
       return new Response(JSON.stringify({ error: r1.error }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
 
@@ -191,6 +315,8 @@ Deno.serve(async (req) => {
 
     if (tc?.function?.name === 'search_web') {
       usedSearch = true;
+      answeredByModel = answerModel;
+
       let query = '';
       try { query = JSON.parse(tc.function.arguments).query; } catch { query = tc.function.arguments || ''; }
       console.log(`[${requestId}] search query="${query}"`);
@@ -218,7 +344,7 @@ Deno.serve(async (req) => {
         ];
 
         console.log(`[${requestId}] calling NVIDIA with search results...`);
-        const r2 = await callNvidia(toolMsgs, undefined, model);
+        const r2 = await callNvidia(toolMsgs, undefined, answerModel);
         if (r2.ok) {
           const d2 = r2.data as { choices: { message: { content: string } }[] };
           finalContent = d2.choices?.[0]?.message?.content || '';
@@ -228,12 +354,16 @@ Deno.serve(async (req) => {
 
     const payload: Record<string, unknown> = { chat_id: chatId, role: 'assistant', content: finalContent };
     if (usedSearch) { payload.used_web_search = true; payload.sources = sources; }
+    if (answeredByModel) { payload.answered_by_model = answeredByModel; }
     await supabase.from('messages').insert(payload);
-    console.log(`[${requestId}] saved assistant msg, len=${finalContent.length} search=${usedSearch}`);
+    console.log(`[${requestId}] saved assistant msg from ${answeredByModel || selectedModel}, len=${finalContent.length} search=${usedSearch}`);
 
-    return new Response(JSON.stringify({ content: finalContent, usedSearch, sources }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response(JSON.stringify({
+      content: finalContent,
+      usedSearch,
+      sources,
+      answeredByModel,
+    }), { headers: { 'Content-Type': 'application/json' } });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[${requestId}] unhandled error: ${msg}`);

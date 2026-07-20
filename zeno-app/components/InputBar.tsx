@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
-import { Send } from 'lucide-react-native';
+import { View, TextInput, StyleSheet, Animated, Easing, Pressable, useColorScheme } from 'react-native';
+import { Send, Globe } from 'lucide-react-native';
+import { useColors, typography, radii, softShadow } from '../lib/theme';
 
 type Props = {
   onSend: (text: string) => void;
   disabled?: boolean;
+  forceSearch?: boolean;
+  onForceSearchToggle?: () => void;
 };
 
 function ThinkingDots() {
@@ -16,52 +19,35 @@ function ThinkingDots() {
 
   useEffect(() => {
     const animations = dots.map((dot, i) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(i * 200),
-          Animated.timing(dot, { toValue: 1, duration: 400, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-          Animated.timing(dot, { toValue: 0, duration: 400, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-        ])
-      )
+      Animated.loop(Animated.sequence([
+        Animated.delay(i * 200),
+        Animated.timing(dot, { toValue: 1, duration: 400, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(dot, { toValue: 0, duration: 400, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+      ]))
     );
     animations.forEach((a) => a.start());
     return () => animations.forEach((a) => a.stop());
   }, []);
 
   return (
-    <View style={thinkingStyles.container}>
+    <View style={td.container}>
       {dots.map((dot, i) => (
-        <Animated.View
-          key={i}
-          style={[
-            thinkingStyles.dot,
-            {
-              opacity: dot.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
-              transform: [{ scale: dot.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.2] }) }],
-            },
-          ]}
-        />
+        <Animated.View key={i} style={[td.dot, {
+          opacity: dot.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+          transform: [{ scale: dot.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.2] }) }],
+        }]} />
       ))}
     </View>
   );
 }
 
-const thinkingStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 4,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#fff',
-  },
+const td = StyleSheet.create({
+  container: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#eee' },
 });
 
-export default function InputBar({ onSend, disabled }: Props) {
+export default function InputBar({ onSend, disabled, forceSearch, onForceSearchToggle }: Props) {
+  const colors = useColors();
   const [text, setText] = useState('');
 
   function handleSend() {
@@ -72,68 +58,84 @@ export default function InputBar({ onSend, disabled }: Props) {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.inputWrapper}>
-        <TextInput
-          style={styles.input}
-          placeholder="Message Zeno…"
-          placeholderTextColor="#555"
-          value={text}
-          onChangeText={setText}
-          multiline
-          editable={!disabled}
-        />
+    <View style={[s.wrapper, { backgroundColor: colors.composerBg, borderColor: colors.composerBorder }, softShadow()]}>
+      <View style={s.container}>
+        <Pressable
+          style={({ pressed }) => [
+            s.globeBtn,
+            forceSearch && { backgroundColor: colors.accent },
+            pressed && { opacity: 0.7 },
+          ]}
+          onPress={onForceSearchToggle}
+          disabled={disabled}
+        >
+          <Globe size={20} color={forceSearch ? '#fff' : colors.textMuted} />
+        </Pressable>
+        <View style={s.inputWrapper}>
+          <TextInput
+            style={[s.input, { color: colors.textPrimary }]}
+            placeholder="Message Zeno…"
+            placeholderTextColor={colors.textMuted}
+            value={text}
+            onChangeText={setText}
+            multiline
+            editable={!disabled}
+          />
+        </View>
+        <Pressable
+          style={({ pressed }) => [
+            s.sendButton,
+            { backgroundColor: colors.accent },
+            (!text.trim() || disabled) && s.sendButtonDisabled,
+            pressed && !disabled && text.trim() && { opacity: 0.7 },
+          ]}
+          onPress={handleSend}
+          disabled={!text.trim() || disabled}
+        >
+          {disabled ? <ThinkingDots /> : <Send size={20} color="#fff" />}
+        </Pressable>
       </View>
-      <TouchableOpacity
-        style={[styles.sendButton, (!text.trim() || disabled) && styles.sendButtonDisabled]}
-        onPress={handleSend}
-        disabled={!text.trim() || disabled}
-        activeOpacity={0.7}
-      >
-        {disabled ? (
-          <ThinkingDots />
-        ) : (
-          <Send size={18} color="#fff" />
-        )}
-      </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
+  wrapper: {
+    borderWidth: 1,
+    borderRadius: radii.md,
+    marginHorizontal: 12,
+    marginBottom: 10,
+  },
   container: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#1a1a2e',
-    backgroundColor: '#0f0f1a',
+    paddingHorizontal: 6,
+    paddingVertical: 6,
   },
-  inputWrapper: {
-    flex: 1,
-    backgroundColor: '#1e1e2e',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#2a2a44',
-  },
-  input: {
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    fontSize: 16,
-    color: '#e0e0e5',
-    maxHeight: 120,
-  },
-  sendButton: {
-    backgroundColor: '#3b82f6',
-    borderRadius: 24,
+  globeBtn: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
+    borderRadius: 22,
+  },
+  inputWrapper: { flex: 1 },
+  input: {
+    paddingHorizontal: 10,
+    paddingVertical: 11,
+    fontSize: 16,
+    maxHeight: 120,
+    fontFamily: 'Inter_400Regular',
+  },
+  sendButton: {
+    borderRadius: 22,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
   sendButtonDisabled: {
-    backgroundColor: '#1a2a4a',
+    opacity: 0.3,
   },
 });

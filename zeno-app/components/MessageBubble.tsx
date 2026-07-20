@@ -1,101 +1,60 @@
-import { View, Text, StyleSheet, Linking, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Linking, Pressable, useColorScheme } from 'react-native';
 import { Source } from '../lib/types';
+import { useColors, typography, radii } from '../lib/theme';
 
 type Props = {
   role: 'user' | 'assistant' | 'system';
   content: string;
   sources?: Source[] | null;
+  answeredByModel?: string | null;
+  chatModel?: string;
 };
 
-export default function MessageBubble({ role, content, sources }: Props) {
+export default function MessageBubble({ role, content, sources, answeredByModel, chatModel }: Props) {
+  const colors = useColors();
+  const t = typography(colors);
   const isUser = role === 'user';
   const hasSources = sources && sources.length > 0;
+  const showAnsweredBy = !!answeredByModel && answeredByModel !== chatModel;
+  const lastSegment = answeredByModel?.split('/').pop() || '';
+
+  if (isUser) {
+    return (
+      <View style={sr.userContainer}>
+        <View style={[sr.userBubble, { backgroundColor: colors.userBubble }]}>
+          <Text style={[t.body, { color: colors.textPrimary }]}>{content}</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.container, isUser ? styles.userContainer : styles.assistantContainer]}>
-      <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
-        <Text style={[styles.text, isUser ? styles.userText : styles.assistantText]}>
-          {content}
-        </Text>
-        {hasSources && (
-          <View style={styles.sourcesContainer}>
-            {sources.map((s, i) => (
-              <TouchableOpacity key={i} onPress={() => Linking.openURL(s.url)} style={styles.sourceItem}>
-                <Text style={styles.sourceBullet}>{i + 1}</Text>
-                <Text style={styles.sourceLink} numberOfLines={1}>{s.title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </View>
+    <View style={sr.assistantContainer}>
+      <Text style={[t.body, { lineHeight: 26, color: colors.textPrimary }]}>{content}</Text>
+      {hasSources && (
+        <View style={[sr.sourcesContainer, { borderTopColor: colors.composerBorder }]}>
+          {sources.map((src, i) => (
+            <Pressable key={i} onPress={() => Linking.openURL(src.url)} style={sr.sourceItem}>
+              <Text style={[sr.sourceBullet, { backgroundColor: colors.userBubble, color: colors.accent }]}>{i + 1}</Text>
+              <Text style={[sr.sourceLink, { color: colors.accent }]} numberOfLines={1}>{src.title}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {showAnsweredBy && (
+        <Text style={[sr.answeredBy, { color: colors.textMuted }]}>Answered using {lastSegment}{hasSources ? ' (web search)' : ''}</Text>
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginVertical: 3,
-    paddingHorizontal: 14,
-  },
-  userContainer: {
-    alignItems: 'flex-end',
-  },
-  assistantContainer: {
-    alignItems: 'flex-start',
-  },
-  bubble: {
-    maxWidth: '82%',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  userBubble: {
-    backgroundColor: '#2b4f8a',
-    borderRadius: 18,
-    borderBottomRightRadius: 4,
-  },
-  assistantBubble: {
-    backgroundColor: '#1e1e2e',
-    borderRadius: 18,
-    borderBottomLeftRadius: 4,
-  },
-  text: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  userText: {
-    color: '#f0f0f5',
-  },
-  assistantText: {
-    color: '#d0d0e0',
-  },
-  sourcesContainer: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#2a2a44',
-    gap: 6,
-  },
-  sourceItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sourceBullet: {
-    color: '#5b9aff',
-    fontSize: 11,
-    fontWeight: '700',
-    backgroundColor: '#1a1a30',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    textAlign: 'center',
-    lineHeight: 18,
-    overflow: 'hidden',
-  },
-  sourceLink: {
-    color: '#5b9aff',
-    fontSize: 13,
-    flex: 1,
-    textDecorationLine: 'underline',
-  },
+const sr = StyleSheet.create({
+  userContainer: { alignItems: 'flex-end', paddingHorizontal: 14, marginVertical: 4 },
+  userBubble: { maxWidth: '80%', borderRadius: radii.md, borderBottomRightRadius: 4, paddingHorizontal: 16, paddingVertical: 10 },
+  assistantContainer: { paddingHorizontal: 14, marginVertical: 6 },
+  sourcesContainer: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, gap: 6 },
+  sourceItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sourceBullet: { fontSize: 11, fontWeight: '700', width: 20, height: 20, borderRadius: 10, textAlign: 'center', lineHeight: 20, overflow: 'hidden' },
+  sourceLink: { fontSize: 13, flex: 1, textDecorationLine: 'underline', fontFamily: 'Inter_500Medium' },
+  answeredBy: { fontSize: 13, marginTop: 4, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
 });

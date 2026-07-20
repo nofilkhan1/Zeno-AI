@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert, ActivityIndicator, Pressable, StatusBar, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { useColors, typography, radii } from '../../lib/theme';
 
 export default function SignInScreen() {
   const router = useRouter();
+  const colors = useColors();
+  const scheme = useColorScheme();
+  const t = typography(colors);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,97 +23,40 @@ export default function SignInScreen() {
   async function signUp() {
     setLoading(true);
     const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      Alert.alert('Sign up error', error.message);
-    } else {
-      Alert.alert('Check your email', 'A confirmation link has been sent to your email.');
-    }
+    if (error) Alert.alert('Sign up error', error.message);
+    else Alert.alert('Check your email', 'A confirmation link has been sent to your email.');
     setLoading(false);
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Zeno</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#999"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#999"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-
-      {loading ? (
-        <ActivityIndicator size="large" style={{ marginTop: 16 }} />
-      ) : (
-        <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.button} onPress={signIn}>
-            <Text style={styles.buttonText}>Sign In</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.button, styles.buttonOutline]} onPress={signUp}>
-            <Text style={[styles.buttonText, styles.buttonOutlineText]}>Sign Up</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+    <View style={[s.container, { backgroundColor: colors.bg }]}>
+      <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
+      <Text style={[t.title, { textAlign: 'center', marginBottom: 48 }]}>Zeno</Text>
+      <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+        <TextInput style={[s.input, { color: colors.textPrimary, borderColor: colors.composerBorder }]} placeholder="Email" placeholderTextColor={colors.textMuted} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+        <TextInput style={[s.input, { color: colors.textPrimary, borderColor: colors.composerBorder }]} placeholder="Password" placeholderTextColor={colors.textMuted} value={password} onChangeText={setPassword} secureTextEntry />
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 16 }} />
+        ) : (
+          <View style={s.buttonRow}>
+            <Pressable style={({ pressed }) => [s.button, { backgroundColor: colors.accent }, pressed && { opacity: 0.7 }]} onPress={signIn}>
+              <Text style={[t.bodyMedium, { color: '#fff' }]}>Sign In</Text>
+            </Pressable>
+            <Pressable style={({ pressed }) => [s.buttonOutline, { borderColor: colors.composerBorder }, pressed && { opacity: 0.7 }]} onPress={signUp}>
+              <Text style={[t.bodyMedium, { color: colors.accent }]}>Sign Up</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 48,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  button: {
-    flex: 1,
-    backgroundColor: '#007AFF',
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonOutline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#007AFF',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  buttonOutlineText: {
-    color: '#007AFF',
-  },
+const s = StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', padding: 24 },
+  card: { borderRadius: radii.md, padding: 24, borderWidth: 1 },
+  input: { borderWidth: 1, borderRadius: radii.sm, padding: 14, fontSize: 16, marginBottom: 12, fontFamily: 'Inter_400Regular' },
+  buttonRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  button: { flex: 1, padding: 14, borderRadius: radii.sm, alignItems: 'center', minHeight: 44, justifyContent: 'center' },
+  buttonOutline: { flex: 1, borderWidth: 1, padding: 14, borderRadius: radii.sm, alignItems: 'center', minHeight: 44, justifyContent: 'center' },
 });

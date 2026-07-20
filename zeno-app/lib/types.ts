@@ -10,6 +10,7 @@ export type Message = {
   content: string;
   used_web_search?: boolean;
   sources?: Source[] | null;
+  answered_by_model?: string;
   created_at: string;
 };
 
