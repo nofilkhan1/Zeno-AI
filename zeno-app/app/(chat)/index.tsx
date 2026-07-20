@@ -59,15 +59,19 @@ export default function ChatListScreen() {
     await supabase.from('chats').update({ model: modelId }).eq('id', activeChat.id);
   }, [activeChat]);
 
+  const abortChatIdRef = useRef<string | null>(null);
+
   const handleSend = useCallback(async (text: string) => {
     if (!activeChat || sendingRef.current) return;
     sendingRef.current = true;
     setSending(true);
     setSendError(null);
+    abortChatIdRef.current = activeChat.id;
 
-    const userMsg: Message = { id: randomId(), chat_id: activeChat.id, role: 'user', content: text, created_at: new Date().toISOString() };
+    const chatId = activeChat.id;
+    const userMsg: Message = { id: randomId(), chat_id: chatId, role: 'user', content: text, created_at: new Date().toISOString() };
     const assistantId = randomId();
-    setMessages((prev) => [...prev, userMsg, { id: assistantId, chat_id: activeChat.id, role: 'assistant', content: '', created_at: new Date().toISOString() } as Message]);
+    setMessages((prev) => [...prev, userMsg, { id: assistantId, chat_id: chatId, role: 'assistant', content: '', created_at: new Date().toISOString() } as Message]);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -80,7 +84,7 @@ export default function ChatListScreen() {
       const response = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: activeChat.id, message: text, forceSearch }),
+        body: JSON.stringify({ chatId, message: text, forceSearch }),
         signal: controller.signal,
       });
 
@@ -93,18 +97,30 @@ export default function ChatListScreen() {
         throw new Error(data.error || `HTTP ${response.status}`);
       }
 
-      setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: data.content || '', sources: data.sources || [], answered_by_model: data.answeredByModel || undefined } : m));
-      loadMessages(activeChat.id);
+      setMessages((prev) => {
+        const existing = prev.find((m) => m.id === assistantId);
+        if (existing) {
+          return prev.map((m) => m.id === assistantId ? { ...m, content: data.content || '', sources: data.sources || [], answered_by_model: data.answeredByModel || undefined } : m);
+        }
+        // Restore if wiped by stale loadMessages
+        return [...prev, { id: assistantId, chat_id: chatId, role: 'assistant' as const, content: data.content || '', sources: data.sources || [], answered_by_model: data.answeredByModel || undefined, created_at: new Date().toISOString() } as Message];
+      });
       loadChats();
     } catch (err) {
+      if (abortChatIdRef.current !== chatId) return; // stale response, ignore
       clearTimeout(timeoutId);
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
-      // Detect rate limiting or timeout
       const isAbort = err instanceof Error && (err.name === 'AbortError' || err.message?.includes('cancelled') || err.message?.includes('aborted'));
       const isRateLimit = errMsg.toLowerCase().includes('rate limit');
       const displayMsg = isAbort ? 'Request timed out. The server is busy — try again in a moment.' : isRateLimit ? 'Too many requests. Please wait a moment before sending another message.' : errMsg;
       setSendError(displayMsg);
-      setMessages((prev) => prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: `Error: ${displayMsg}` } : m));
+      setMessages((prev) => {
+        const existing = prev.find((m) => m.id === assistantId && !m.content);
+        if (existing) {
+          return prev.map((m) => m.id === assistantId && !m.content ? { ...m, content: `Error: ${displayMsg}` } : m);
+        }
+        return [...prev, { id: assistantId, chat_id: chatId, role: 'assistant' as const, content: `Error: ${displayMsg}`, created_at: new Date().toISOString() } as Message];
+      });
     } finally {
       abortRef.current = null;
       sendingRef.current = false;
