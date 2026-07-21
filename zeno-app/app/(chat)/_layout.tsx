@@ -39,7 +39,6 @@ export default function ChatLayout() {
     }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="chat/[chatId]" options={{ title: 'Chat', headerBackTitle: 'Back' }} />
-      <Stack.Screen name="settings" options={{ title: 'Settings', headerBackTitle: 'Back' }} />
     </Stack>
   );
 }

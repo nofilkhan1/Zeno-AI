@@ -11,6 +11,10 @@ type Props = {
   webSearch?: boolean | null;
 };
 
+function extractDomain(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+}
+
 export default function MessageBubble({ role, content, sources, answeredByModel, chatModel, webSearch }: Props) {
   const colors = useColors();
   const t = typography(colors);
@@ -24,7 +28,7 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
     return (
       <View style={sr.userContainer}>
         <View style={[sr.userBubble, { backgroundColor: colors.userBubble }]}>
-          <Text style={[t.body, { color: colors.textPrimary }]}>{content}</Text>
+          <Text style={t.body}>{content}</Text>
         </View>
       </View>
     );
@@ -32,13 +36,25 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
 
   return (
     <View style={sr.assistantContainer}>
-      <Text style={[t.body, { lineHeight: 26, color: colors.textPrimary }]}>{content}</Text>
+      <Text style={t.body}>{content}</Text>
       {hasSources && (
         <View style={[sr.sourcesContainer, { borderTopColor: colors.composerBorder }]}>
           {sources.map((src, i) => (
-            <Pressable key={i} onPress={() => Linking.openURL(src.url)} style={sr.sourceItem}>
-              <Text style={[sr.sourceBullet, { backgroundColor: colors.userBubble, color: colors.accent }]}>{i + 1}</Text>
-              <Text style={[sr.sourceLink, { color: colors.accent }]} numberOfLines={1}>{src.title}</Text>
+            <Pressable
+              key={i}
+              style={({ pressed }) => [
+                sr.sourceCard,
+                { backgroundColor: colors.userBubble },
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={() => Linking.openURL(src.url)}
+            >
+              <Text style={[sr.sourceDomain, { color: colors.textMuted }]} numberOfLines={1}>
+                {extractDomain(src.url)}
+              </Text>
+              <Text style={[sr.sourceTitle, { color: colors.textPrimary }]} numberOfLines={2}>
+                {src.title}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -59,14 +75,14 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
 }
 
 const sr = StyleSheet.create({
-  userContainer: { alignItems: 'flex-end', paddingHorizontal: 14, marginVertical: 4 },
-  userBubble: { maxWidth: '80%', borderRadius: radii.md, borderBottomRightRadius: 4, paddingHorizontal: 16, paddingVertical: 10 },
-  assistantContainer: { paddingHorizontal: 14, marginVertical: 6 },
-  sourcesContainer: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, gap: 6 },
-  sourceItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sourceBullet: { fontSize: 11, fontWeight: '700', width: 20, height: 20, borderRadius: 10, textAlign: 'center', lineHeight: 20, overflow: 'hidden' },
-  sourceLink: { fontSize: 13, flex: 1, textDecorationLine: 'underline', fontFamily: 'Inter_500Medium' },
-  answeredBy: { fontSize: 13, marginTop: 4, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
-  webSearchBadge: { alignSelf: 'flex-start', marginTop: 8, borderRadius: 6, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText: { fontSize: 11, fontFamily: 'Inter_500Medium' },
+  userContainer: { alignItems: 'flex-end', paddingHorizontal: 16, marginVertical: 8 },
+  userBubble: { maxWidth: '80%', borderRadius: radii.md, borderBottomRightRadius: 4, paddingHorizontal: 16, paddingVertical: 12 },
+  assistantContainer: { paddingHorizontal: 16, marginVertical: 8 },
+  sourcesContainer: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, gap: 8 },
+  sourceCard: { borderRadius: radii.sm, padding: 12 },
+  sourceDomain: { fontSize: 12, fontFamily: 'Inter_400Regular', marginBottom: 2 },
+  sourceTitle: { fontSize: 14, fontFamily: 'Inter_500Medium', lineHeight: 20 },
+  answeredBy: { fontSize: 13, marginTop: 8, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
+  webSearchBadge: { alignSelf: 'flex-start', marginTop: 8, borderRadius: radii.sm, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
 });

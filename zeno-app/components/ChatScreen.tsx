@@ -117,10 +117,10 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
 
 const s = StyleSheet.create({
   container: { flex: 1 },
-  errorBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 14, marginTop: 8, borderRadius: radii.sm, borderWidth: 1 },
+  errorBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16, marginHorizontal: 16, marginTop: 8, borderRadius: radii.sm, borderWidth: 1 },
   errorText: { fontSize: 14, flex: 1, lineHeight: 20, fontFamily: 'Inter_400Regular' },
   errorDismiss: { padding: 8 },
-  thinkingBar: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 14, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.sm, borderWidth: 1 },
+  thinkingBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: radii.sm, borderWidth: 1 },
   thinkingText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
   list: { paddingTop: 8, paddingBottom: 8 },
   listEmpty: { flexGrow: 1, justifyContent: 'center' },

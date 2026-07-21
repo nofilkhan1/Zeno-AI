@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, Pressable, LayoutAnimation, Platform, UIManager } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Menu, Settings } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
@@ -25,7 +24,6 @@ const LAST_MODEL_KEY = 'zeno-last-model';
 const DEFAULT_MODEL_ID = 'nvidia/nemotron-3-nano-30b-a3b';
 
 export default function ChatListScreen() {
-  const router = useRouter();
   const colors = useColors();
   const t = typography(colors);
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -36,6 +34,7 @@ export default function ChatListScreen() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [searchArmed, setSearchArmed] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const sendingRef = useRef(false);
   const searchArmedRef = useRef(false);
@@ -178,18 +177,18 @@ export default function ChatListScreen() {
           <Menu size={24} color={colors.textPrimary} />
         </Pressable>
         <ModelPicker selected={activeChat?.model || DEFAULT_MODEL_ID} onSelect={handleModelSelect} />
-        <Pressable style={({ pressed }) => [s.headerBtn, pressed && { opacity: 0.7 }]} onPress={() => router.push('./settings')}>
+        <Pressable style={({ pressed }) => [s.headerBtn, pressed && { opacity: 0.7 }]} onPress={() => setShowSettings(true)}>
           <Settings size={24} color={colors.textMuted} />
         </Pressable>
       </View>
       <ChatScreen messages={messages} onSend={handleSend} sending={sending} sendError={sendError} onDismissError={() => setSendError(null)} chatModel={activeChat?.model} searchArmed={searchArmed} onToggleSearch={handleToggleSearch} />
-      <Sidebar visible={sidebarVisible} onClose={() => setSidebarVisible(false)} onNewChat={handleNewChat} chats={chats} chatsLoading={chatsLoading} activeChatId={activeChat?.id} onSelectChat={(chat) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActiveChat(chat); setSendError(null); setSidebarVisible(false); }} onRenameChat={(chatId, newTitle) => { setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title: newTitle } : c)); setActiveChat((prev) => prev?.id === chatId ? { ...prev, title: newTitle } : prev); }} />
+      <Sidebar visible={sidebarVisible} onClose={() => { setSidebarVisible(false); setShowSettings(false); }} onNewChat={handleNewChat} chats={chats} chatsLoading={chatsLoading} activeChatId={activeChat?.id} onSelectChat={(chat) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActiveChat(chat); setSendError(null); setSidebarVisible(false); }} onRenameChat={(chatId, newTitle) => { setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title: newTitle } : c)); setActiveChat((prev) => prev?.id === chatId ? { ...prev, title: newTitle } : prev); }} showSettings={showSettings} onToggleSettings={() => setShowSettings((p) => !p)} />
     </View>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, paddingTop: 52 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, paddingTop: 52 },
   headerBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });

@@ -117,11 +117,11 @@ export default function InputBar({ onSend, disabled, searchArmed, onToggleSearch
 }
 
 const s = StyleSheet.create({
-  wrapper: { borderWidth: 1, borderRadius: radii.md, marginHorizontal: 12, marginBottom: 10 },
-  container: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 6, paddingVertical: 6 },
+  wrapper: { borderWidth: 1, borderRadius: radii.md, marginHorizontal: 12, marginBottom: 12 },
+  container: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 8, paddingVertical: 6 },
   globeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   inputWrapper: { flex: 1 },
-  input: { paddingHorizontal: 10, paddingVertical: 11, fontSize: 16, maxHeight: 120, fontFamily: 'Inter_400Regular' },
-  sendButton: { borderRadius: 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
+  input: { paddingHorizontal: 12, paddingVertical: 12, fontSize: 16, maxHeight: 120, fontFamily: 'Inter_400Regular' },
+  sendButton: { borderRadius: 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
   sendButtonDisabled: { opacity: 0.3 },
 });
