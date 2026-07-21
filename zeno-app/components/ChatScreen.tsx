@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
 import { FlatList, View, StyleSheet, Text, Pressable, Animated, Easing, useColorScheme } from 'react-native';
 import { X, Sparkles } from 'lucide-react-native';
 import { Message } from '../lib/types';
@@ -13,7 +13,8 @@ type Props = {
   sendError?: string | null;
   onDismissError?: () => void;
   chatModel?: string;
-  onWebGlobePress?: () => void;
+  searchArmed?: boolean;
+  onToggleSearch?: () => void;
 };
 
 const ANIM_DURATION = 200;
@@ -43,15 +44,12 @@ function ErrorBar({ message, onDismiss }: { message: string; onDismiss: () => vo
   const colors = useColors();
   const scheme = useColorScheme();
   const opacity = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
     Animated.timing(opacity, { toValue: 1, duration: ANIM_DURATION, useNativeDriver: true }).start();
   }, []);
-
   function handleDismiss() {
     Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => onDismiss());
   }
-
   return (
     <Animated.View style={[s.errorBar, { opacity, backgroundColor: scheme === 'dark' ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.06)', borderColor: scheme === 'dark' ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.15)' }]}>
       <Text style={[s.errorText, { color: colors.danger }]} numberOfLines={2}>{message}</Text>
@@ -62,7 +60,7 @@ function ErrorBar({ message, onDismiss }: { message: string; onDismiss: () => vo
   );
 }
 
-export default function ChatScreen({ messages = [], onSend, sending, sendError, onDismissError, chatModel, onWebGlobePress }: Props) {
+export default function ChatScreen({ messages = [], onSend, sending, sendError, onDismissError, chatModel, searchArmed, onToggleSearch }: Props) {
   const colors = useColors();
   const scheme = useColorScheme();
   const t = typography(colors);
@@ -79,9 +77,7 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
 
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
-      {sendError && (
-        <ErrorBar message={sendError} onDismiss={onDismissError || (() => {})} />
-      )}
+      {sendError && <ErrorBar message={sendError} onDismiss={onDismissError || (() => {})} />}
       <FlatList
         ref={listRef}
         data={messages}
@@ -112,7 +108,8 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
       <InputBar
         onSend={(text) => onSend?.(text)}
         disabled={sending}
-        onGlobePress={onWebGlobePress}
+        searchArmed={searchArmed}
+        onToggleSearch={onToggleSearch}
       />
     </View>
   );

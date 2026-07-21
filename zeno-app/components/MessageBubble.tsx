@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Linking, Pressable, useColorScheme } from 'react-native';
+import { View, Text, StyleSheet, Linking, Pressable } from 'react-native';
 import { Source } from '../lib/types';
 import { useColors, typography, radii } from '../lib/theme';
 
@@ -18,6 +18,7 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
   const hasSources = sources && sources.length > 0;
   const showAnsweredBy = !!answeredByModel && answeredByModel !== chatModel;
   const lastSegment = answeredByModel?.split('/').pop() || '';
+  const showSearchLabel = webSearch || showAnsweredBy;
 
   if (isUser) {
     return (
@@ -42,13 +43,16 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
           ))}
         </View>
       )}
-      {webSearch && !hasSources && (
+      {!hasSources && showSearchLabel && (
         <View style={[sr.webSearchBadge, { backgroundColor: colors.userBubble, borderColor: colors.composerBorder }]}>
           <Text style={[sr.badgeText, { color: colors.accent }]}>Web search</Text>
         </View>
       )}
       {showAnsweredBy && (
-        <Text style={[sr.answeredBy, { color: colors.textMuted }]}>Answered using {lastSegment}</Text>
+        <Text style={[sr.answeredBy, { color: colors.textMuted }]}>Answered using {lastSegment}{hasSources ? ' (web search)' : ''}</Text>
+      )}
+      {!showAnsweredBy && webSearch && (
+        <Text style={[sr.answeredBy, { color: colors.textMuted }]}>Web search</Text>
       )}
     </View>
   );

@@ -6,7 +6,8 @@ import { useColors, radii, softShadow } from '../lib/theme';
 type Props = {
   onSend: (text: string) => void;
   disabled?: boolean;
-  onGlobePress?: () => void;
+  searchArmed?: boolean;
+  onToggleSearch?: () => void;
 };
 
 function ThinkingDots() {
@@ -45,7 +46,7 @@ const td = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#eee' },
 });
 
-export default function InputBar({ onSend, disabled, onGlobePress }: Props) {
+export default function InputBar({ onSend, disabled, searchArmed, onToggleSearch }: Props) {
   const colors = useColors();
   const [text, setText] = useState('');
   const textRef = useRef('');
@@ -68,9 +69,7 @@ export default function InputBar({ onSend, disabled, onGlobePress }: Props) {
   function handleKeyPress(e: any) {
     if (e.nativeEvent.key === 'Enter') {
       const isShift = Platform.OS === 'web' ? e.nativeEvent.shiftKey : false;
-      if (!isShift) {
-        handleSend();
-      }
+      if (!isShift) handleSend();
     }
   }
 
@@ -80,12 +79,13 @@ export default function InputBar({ onSend, disabled, onGlobePress }: Props) {
         <Pressable
           style={({ pressed }) => [
             s.globeBtn,
+            searchArmed && { backgroundColor: colors.accent },
             pressed && { opacity: 0.7 },
           ]}
-          onPress={onGlobePress}
+          onPress={onToggleSearch}
           disabled={disabled}
         >
-          <Globe size={20} color={colors.textMuted} />
+          <Globe size={20} color={searchArmed ? '#fff' : colors.textMuted} />
         </Pressable>
         <View style={s.inputWrapper}>
           <TextInput
@@ -117,42 +117,11 @@ export default function InputBar({ onSend, disabled, onGlobePress }: Props) {
 }
 
 const s = StyleSheet.create({
-  wrapper: {
-    borderWidth: 1,
-    borderRadius: radii.md,
-    marginHorizontal: 12,
-    marginBottom: 10,
-  },
-  container: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-  },
-  globeBtn: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 22,
-  },
+  wrapper: { borderWidth: 1, borderRadius: radii.md, marginHorizontal: 12, marginBottom: 10 },
+  container: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 6, paddingVertical: 6 },
+  globeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   inputWrapper: { flex: 1 },
-  input: {
-    paddingHorizontal: 10,
-    paddingVertical: 11,
-    fontSize: 16,
-    maxHeight: 120,
-    fontFamily: 'Inter_400Regular',
-  },
-  sendButton: {
-    borderRadius: 22,
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
-  },
-  sendButtonDisabled: {
-    opacity: 0.3,
-  },
+  input: { paddingHorizontal: 10, paddingVertical: 11, fontSize: 16, maxHeight: 120, fontFamily: 'Inter_400Regular' },
+  sendButton: { borderRadius: 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
+  sendButtonDisabled: { opacity: 0.3 },
 });

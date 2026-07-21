@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
   const requestId = crypto.randomUUID().slice(0, 8);
 
   try {
-    const { chatId, message, forceSearch, modelOverride } = await req.json();
+    const { chatId, message, searchRequested, modelOverride } = await req.json();
 
     if (!chatId || !message) {
       return new Response(JSON.stringify({ error: 'chatId and message required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
-    console.log(`[${requestId}] user=${user.id} chat=${chatId} forceSearch=${forceSearch === true} modelOverride=${modelOverride || 'none'} message="${message.slice(0, 80)}"`);
+    console.log(`[${requestId}] user=${user.id} chat=${chatId} searchRequested=${searchRequested === true} modelOverride=${modelOverride || 'none'} message="${message.slice(0, 80)}"`);
 
     const { allowed, retryAfter } = checkRateLimit(user.id);
     if (!allowed) {
@@ -251,45 +251,55 @@ Deno.serve(async (req) => {
     const { data: history } = await supabase.from('messages').select('role, content').eq('chat_id', chatId).order('created_at');
     const msgs = (history || []).map((m) => ({ role: m.role, content: m.content }));
 
-    // Only run search when client explicitly sends forceSearch===true
-    // forceSearch must be the boolean true — no truthy coercion, no auto-detection
-    const shouldSearch = forceSearch === true;
+    // Add system date message to every request
+    const today = new Date().toISOString().split('T')[0];
+    const dateMsg = { role: 'system', content: `Current date: ${today}. Always respond using this current date for any time-sensitive queries.` };
+    const msgsWithDate = [...msgs, dateMsg];
 
-    // Determine which model to use for answering
+    // searchRequested must be the boolean true — no truthy coercion
+    const shouldSearch = searchRequested === true;
+
     let answerModel = selectedModel;
     let answeredByModel: string | undefined;
+    let actualModelSupportsTools = selectedSupportsTools;
+
+    if (shouldSearch && !selectedSupportsTools) {
+      // Auto-swap to a tools-capable model when user's model lacks tools
+      answerModel = TOOLS_MODEL;
+      answeredByModel = TOOLS_MODEL;
+      actualModelSupportsTools = true;
+      console.log(`[${requestId}] search requested but ${selectedModel} lacks tools, swapping to ${answerModel}`);
+    }
 
     if (shouldSearch) {
-      // Manual search: run search flow with tools-capable model
-      console.log(`[${requestId}] manual search forced, using ${TOOLS_MODEL}`);
-      const result = await runSearchFlow(msgs, TOOLS_MODEL, requestId);
-
-      answerModel = TOOLS_MODEL;
-      answeredByModel = result.usedSearch ? TOOLS_MODEL : undefined;
+      // Search flow: attach tools
+      console.log(`[${requestId}] search flow with model=${answerModel}`);
+      const result = await runSearchFlow(msgsWithDate, answerModel, requestId);
 
       if (result.usedSearch) {
+        const finalAnswerModel = answeredByModel || answerModel;
         const payload: Record<string, unknown> = { chat_id: chatId, role: 'assistant', content: result.content };
         payload.used_web_search = true;
         if (result.sources.length) payload.sources = result.sources;
-        if (answeredByModel) payload.answered_by_model = answeredByModel;
+        payload.answered_by_model = finalAnswerModel;
         await supabase.from('messages').insert(payload);
-        console.log(`[${requestId}] saved assistant msg from ${answeredByModel}, len=${result.content.length} search=${result.usedSearch}`);
+        console.log(`[${requestId}] saved assistant msg from ${finalAnswerModel}, len=${result.content.length} search=${result.usedSearch}`);
 
         return new Response(JSON.stringify({
           content: result.content,
           usedSearch: true,
           sources: result.sources,
-          answeredByModel,
+          answeredByModel: finalAnswerModel,
         }), { headers: { 'Content-Type': 'application/json' } });
       }
 
-      // Search tool wasn't invoked — fall through to selected model
-      console.log(`[${requestId}] search tool not invoked, using selected model ${selectedModel}`);
+      // Search tool wasn't invoked by the model — use the current answerModel without tools
+      console.log(`[${requestId}] search tool not invoked, falling through to normal response`);
     }
 
-    // Normal flow: call the selected model WITHOUT tools (search only runs when forceSearch=true)
+    // Normal flow: call WITHOUT tools
     console.log(`[${requestId}] calling ${answerModel} without tools...`);
-    const r1 = await callNvidia(msgs, undefined, answerModel);
+    const r1 = await callNvidia(msgsWithDate, undefined, answerModel);
     if (!r1.ok) {
       console.log(`[${requestId}] call failed: ${r1.error}`);
       return new Response(JSON.stringify({ error: r1.error }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -297,64 +307,19 @@ Deno.serve(async (req) => {
 
     const data1 = r1.data as { choices: { message: { content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[] };
     const choice1 = data1.choices?.[0];
-    const tc = choice1?.message?.tool_calls?.[0];
     const reply = choice1?.message?.content || '';
 
-    console.log(`[${requestId}] response: toolCall=${!!tc} contentLen=${reply.length}`);
+    console.log(`[${requestId}] response: contentLen=${reply.length}`);
 
-    let finalContent = reply;
-    let usedSearch = false;
-    let sources: { title: string; url: string }[] = [];
-
-    if (tc?.function?.name === 'search_web') {
-      usedSearch = true;
-      answeredByModel = answerModel;
-
-      let query = '';
-      try { query = JSON.parse(tc.function.arguments).query; } catch { query = tc.function.arguments || ''; }
-      console.log(`[${requestId}] search query="${query}"`);
-
-      const sres = await fetch(TAVILY_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ api_key: tavilyApiKey, query, search_depth: 'basic', max_results: 5 }),
-      });
-
-      if (sres.ok) {
-        const sd = await sres.json();
-        const results = sd.results || [];
-        sources = results.map((r: { title: string; url: string }) => ({ title: r.title, url: r.url }));
-        const toolContent = results.length
-          ? results.map((r: { title: string; url: string; content: string }, i: number) => `[${i + 1}] ${r.title}\n${r.url}\n${r.content}`).join('\n\n')
-          : 'No results found.';
-
-        console.log(`[${requestId}] search returned ${results.length} results`);
-
-        const toolMsgs = [
-          ...msgs,
-          { role: 'assistant', content: null, tool_calls: [{ id: tc.id, type: 'function', function: { name: 'search_web', arguments: tc.function.arguments } }] },
-          { role: 'tool', tool_call_id: tc.id, content: toolContent },
-        ];
-
-        console.log(`[${requestId}] calling NVIDIA with search results...`);
-        const r2 = await callNvidia(toolMsgs, undefined, answerModel);
-        if (r2.ok) {
-          const d2 = r2.data as { choices: { message: { content: string } }[] };
-          finalContent = d2.choices?.[0]?.message?.content || '';
-        }
-      }
-    }
-
-    const payload: Record<string, unknown> = { chat_id: chatId, role: 'assistant', content: finalContent };
-    if (usedSearch) { payload.used_web_search = true; payload.sources = sources; }
+    const payload: Record<string, unknown> = { chat_id: chatId, role: 'assistant', content: reply };
     if (answeredByModel) { payload.answered_by_model = answeredByModel; }
     await supabase.from('messages').insert(payload);
-    console.log(`[${requestId}] saved assistant msg from ${answeredByModel || selectedModel}, len=${finalContent.length} search=${usedSearch}`);
+    console.log(`[${requestId}] saved assistant msg from ${answeredByModel || answerModel}, len=${reply.length} search=false`);
 
     return new Response(JSON.stringify({
-      content: finalContent,
-      usedSearch,
-      sources,
+      content: reply,
+      usedSearch: false,
+      sources: [],
       answeredByModel,
     }), { headers: { 'Content-Type': 'application/json' } });
   } catch (err) {
