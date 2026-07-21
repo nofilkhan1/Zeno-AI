@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet, Linking, Pressable } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, Linking, Pressable, Modal, Image, Dimensions } from 'react-native';
 import { Source } from '../lib/types';
-import { useColors, typography, radii } from '../lib/theme';
+import { useColors, typography, radii, softShadow } from '../lib/theme';
 
 type Props = {
   role: 'user' | 'assistant' | 'system';
@@ -11,15 +12,53 @@ type Props = {
   webSearch?: boolean | null;
 };
 
+type Segment = { type: 'text'; text: string } | { type: 'citation'; index: number; label: string };
+
+function parseCitations(content: string): Segment[] {
+  const parts: Segment[] = [];
+  const regex = /\[(\d+)\]/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', text: content.slice(lastIndex, match.index) });
+    }
+    parts.push({ type: 'citation', index: parseInt(match[1], 10), label: match[0] });
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < content.length) {
+    parts.push({ type: 'text', text: content.slice(lastIndex) });
+  }
+  return parts.length > 0 ? parts : [{ type: 'text', text: content }];
+}
+
 function extractDomain(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 }
+
+function getFaviconUrl(url: string): string {
+  try {
+    const domain = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+  } catch { return ''; }
+}
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const POPUP_WIDTH = 260;
 
 export default function MessageBubble({ role, content, sources, answeredByModel, chatModel, webSearch }: Props) {
   const colors = useColors();
   const t = typography(colors);
   const isUser = role === 'user';
   const hasSources = sources && sources.length > 0;
+  const [popup, setPopup] = useState<{ index: number; x: number; y: number } | null>(null);
+
+  const segments = hasSources ? parseCitations(content) : [{ type: 'text' as const, text: content }];
+  const selectedSource = popup && sources ? sources[popup.index - 1] : null;
+
+  const popupLeft = popup ? Math.max(16, Math.min(popup.x - 16, SCREEN_WIDTH - POPUP_WIDTH - 16)) : 0;
+  const popupTop = popup ? (popup.y > 300 ? popup.y - 130 : popup.y + 20) : 0;
+
   const showAnsweredBy = !!answeredByModel && answeredByModel !== chatModel;
   const lastSegment = answeredByModel?.split('/').pop() || '';
   const showSearchLabel = webSearch || showAnsweredBy;
@@ -36,29 +75,26 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
 
   return (
     <View style={sr.assistantContainer}>
-      <Text style={t.body}>{content}</Text>
-      {hasSources && (
-        <View style={[sr.sourcesContainer, { borderTopColor: colors.composerBorder }]}>
-          {sources.map((src, i) => (
-            <Pressable
-              key={i}
-              style={({ pressed }) => [
-                sr.sourceCard,
-                { backgroundColor: colors.userBubble },
-                pressed && { opacity: 0.7 },
-              ]}
-              onPress={() => Linking.openURL(src.url)}
-            >
-              <Text style={[sr.sourceDomain, { color: colors.textMuted }]} numberOfLines={1}>
-                {extractDomain(src.url)}
+      <Text style={t.body}>
+        {segments.map((seg, i) => {
+          if (seg.type === 'citation' && seg.index > 0 && sources && seg.index <= sources.length) {
+            return (
+              <Text
+                key={i}
+                style={[sr.citationMark, { color: colors.accent }]}
+                onPress={(e) => {
+                  const { pageX, pageY } = e.nativeEvent;
+                  setPopup({ index: seg.index, x: pageX, y: pageY });
+                }}
+              >
+                {seg.label}
               </Text>
-              <Text style={[sr.sourceTitle, { color: colors.textPrimary }]} numberOfLines={2}>
-                {src.title}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
+            );
+          }
+          return <Text key={i}>{seg.type === 'text' ? seg.text : seg.label}</Text>;
+        })}
+      </Text>
+
       {!hasSources && showSearchLabel && (
         <View style={[sr.webSearchBadge, { backgroundColor: colors.userBubble, borderColor: colors.composerBorder }]}>
           <Text style={[sr.badgeText, { color: colors.accent }]}>Web search</Text>
@@ -70,6 +106,32 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
       {!showAnsweredBy && webSearch && (
         <Text style={[sr.answeredBy, { color: colors.textMuted }]}>Web search</Text>
       )}
+
+      <Modal visible={!!popup} transparent animationType="none" onRequestClose={() => setPopup(null)}>
+        <View style={sr.popupContainer}>
+          <Pressable style={sr.popupOverlay} onPress={() => setPopup(null)} />
+          {selectedSource && popup && (
+            <Pressable
+              style={[sr.popupCard, { backgroundColor: colors.dialogBg }, { left: popupLeft, top: popupTop }, softShadow()]}
+              onPress={() => { Linking.openURL(selectedSource.url); setPopup(null); }}
+            >
+              <Image
+                source={{ uri: getFaviconUrl(selectedSource.url) }}
+                style={sr.favicon}
+                onError={({ nativeEvent: { error } }) => {}}
+              />
+              <View style={sr.popupContent}>
+                <Text style={[sr.popupDomain, { color: colors.textMuted }]} numberOfLines={1}>
+                  {extractDomain(selectedSource.url)}
+                </Text>
+                <Text style={[sr.popupTitle, { color: colors.textPrimary }]} numberOfLines={2}>
+                  {selectedSource.title}
+                </Text>
+              </View>
+            </Pressable>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -78,11 +140,15 @@ const sr = StyleSheet.create({
   userContainer: { alignItems: 'flex-end', paddingHorizontal: 16, marginVertical: 8 },
   userBubble: { maxWidth: '80%', borderRadius: radii.md, borderBottomRightRadius: 4, paddingHorizontal: 16, paddingVertical: 12 },
   assistantContainer: { paddingHorizontal: 16, marginVertical: 8 },
-  sourcesContainer: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, gap: 8 },
-  sourceCard: { borderRadius: radii.sm, padding: 12 },
-  sourceDomain: { fontSize: 12, fontFamily: 'Inter_400Regular', marginBottom: 2 },
-  sourceTitle: { fontSize: 14, fontFamily: 'Inter_500Medium', lineHeight: 20 },
+  citationMark: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold', textDecorationLine: 'underline' },
   answeredBy: { fontSize: 13, marginTop: 8, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
   webSearchBadge: { alignSelf: 'flex-start', marginTop: 8, borderRadius: radii.sm, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  popupContainer: { flex: 1 },
+  popupOverlay: { ...StyleSheet.absoluteFill },
+  popupCard: { position: 'absolute', width: POPUP_WIDTH, flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: radii.sm, gap: 10 },
+  favicon: { width: 20, height: 20, borderRadius: 4 },
+  popupContent: { flex: 1 },
+  popupDomain: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  popupTitle: { fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18, marginTop: 2 },
 });

@@ -3,6 +3,7 @@ import { Slot } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { View, ActivityIndicator, StatusBar, useColorScheme } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
 import { ThemeProvider } from '../lib/theme';
 
@@ -40,8 +41,10 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} />
-      <Slot />
+      <SafeAreaProvider>
+        <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} />
+        <Slot />
+      </SafeAreaProvider>
     </ThemeProvider>
   );
 }

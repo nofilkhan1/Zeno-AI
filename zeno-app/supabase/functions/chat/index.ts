@@ -194,6 +194,7 @@ async function runSearchFlow(
         ...msgs,
         { role: 'assistant', content: null, tool_calls: [{ id: tc.id, type: 'function', function: { name: 'search_web', arguments: tc.function.arguments } }] },
         { role: 'tool', tool_call_id: tc.id, content: toolContent },
+        { role: 'system', content: 'Cite sources inline using bracketed numbers like [1], [2] etc. corresponding to the numbered sources above. Place the citation marker immediately after the claim it supports.' },
       ];
 
       console.log(`[${requestId}] calling NVIDIA with search results...`);

@@ -9,6 +9,7 @@ import Sidebar from '../../components/Sidebar';
 import ChatScreen from '../../components/ChatScreen';
 import ModelPicker from '../../components/ModelPicker';
 import ActionDialog from '../../components/ActionDialog';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, useThemeMode, typography, radii, hitSlop } from '../../lib/theme';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -27,6 +28,7 @@ const DEFAULT_MODEL_ID = 'nvidia/nemotron-3-nano-30b-a3b';
 export default function ChatListScreen() {
   const colors = useColors();
   const t = typography(colors);
+  const insets = useSafeAreaInsets();
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -173,7 +175,7 @@ export default function ChatListScreen() {
 
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
-      <View style={[s.header, { backgroundColor: colors.bg }]}>
+      <View style={[s.header, { backgroundColor: colors.bg, paddingTop: insets.top + 10 }]}>
         <Pressable style={({ pressed }) => [s.headerBtn, pressed && { opacity: 0.7 }]} onPress={() => setSidebarVisible(true)}>
           <Menu size={24} color={colors.textPrimary} />
         </Pressable>
@@ -192,6 +194,7 @@ export default function ChatListScreen() {
 function SettingsOverlay({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const colors = useColors();
   const scheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   const { mode, setMode, resolved } = useThemeMode();
   const t = typography(colors);
   const [clearConfirm, setClearConfirm] = useState(false);
@@ -243,7 +246,7 @@ function SettingsOverlay({ visible, onClose }: { visible: boolean; onClose: () =
       {visible && (
         <Animated.View style={[sSettings.overlay, { backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.2)', opacity: fade }]}>
           <Pressable style={sSettings.overlayPress} onPress={onClose} />
-          <Animated.View style={[sSettings.panel, { backgroundColor: colors.sidebarBg, transform: [{ translateX: tx }] }]}>
+          <Animated.View style={[sSettings.panel, { backgroundColor: colors.sidebarBg, paddingTop: insets.top + 10, transform: [{ translateX: tx }] }]}>
             <View style={sSettings.header}>
               <Text style={t.title}>Settings</Text>
               <Pressable onPress={onClose} style={sSettings.closeBtn} hitSlop={hitSlop}>
@@ -310,7 +313,7 @@ function SettingsOverlay({ visible, onClose }: { visible: boolean; onClose: () =
 const sSettings = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFill, zIndex: 110 },
   overlayPress: { ...StyleSheet.absoluteFill },
-  panel: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 300, paddingTop: 56 },
+  panel: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 300 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 16 },
   closeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   section: { paddingHorizontal: 16, marginBottom: 16 },
@@ -322,6 +325,6 @@ const sSettings = StyleSheet.create({
 
 const s = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, paddingTop: 52 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
   headerBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });

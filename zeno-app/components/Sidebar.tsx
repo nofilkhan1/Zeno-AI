@@ -5,6 +5,7 @@ import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal } from 'lucide-re
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Chat } from '../lib/types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors, typography, radii, softShadow, hitSlop } from '../lib/theme';
 
 type Props = {
@@ -39,6 +40,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
   const router = useRouter();
   const colors = useColors();
   const scheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   const tx = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
@@ -145,7 +147,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
       {visible && (
         <Animated.View style={[s.overlay, { backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.2)', opacity: overlayOpacity }]}>
           <Pressable style={s.overlayPress} onPress={onClose} />
-          <Animated.View style={[s.sidebar, { backgroundColor: colors.sidebarBg }, softShadow(), { transform: [{ translateX: tx }] }]}>
+          <Animated.View style={[s.sidebar, { backgroundColor: colors.sidebarBg, paddingTop: insets.top + 10 }, softShadow(), { transform: [{ translateX: tx }] }]}>
             <View style={s.header}>
               <Text style={t.title}>Zeno</Text>
               <Pressable onPress={onClose} style={s.closeBtn} hitSlop={hitSlop}>
@@ -207,7 +209,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
 const s = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFill, zIndex: 100 },
   overlayPress: { ...StyleSheet.absoluteFill },
-  sidebar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: SIDEBAR_WIDTH, paddingTop: 56 },
+  sidebar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: SIDEBAR_WIDTH },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 16 },
   closeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   newChatButton: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radii.sm, borderWidth: 1 },
