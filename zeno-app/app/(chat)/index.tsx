@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, Pressable, LayoutAnimation, Platform, UIManager } from 'react-native';
-import { Menu, Settings } from 'lucide-react-native';
+import { View, Text, StyleSheet, Pressable, Animated, Easing, Switch, LayoutAnimation, Platform, UIManager, useColorScheme } from 'react-native';
+import { Menu, Settings, X, Trash2, Moon, Sun, Monitor } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
 import { Chat, Message } from '../../lib/types';
@@ -8,7 +8,8 @@ import { MODELS } from '../../lib/models';
 import Sidebar from '../../components/Sidebar';
 import ChatScreen from '../../components/ChatScreen';
 import ModelPicker from '../../components/ModelPicker';
-import { useColors, typography } from '../../lib/theme';
+import ActionDialog from '../../components/ActionDialog';
+import { useColors, useThemeMode, typography, radii, hitSlop } from '../../lib/theme';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -182,10 +183,142 @@ export default function ChatListScreen() {
         </Pressable>
       </View>
       <ChatScreen messages={messages} onSend={handleSend} sending={sending} sendError={sendError} onDismissError={() => setSendError(null)} chatModel={activeChat?.model} searchArmed={searchArmed} onToggleSearch={handleToggleSearch} />
-      <Sidebar visible={sidebarVisible} onClose={() => { setSidebarVisible(false); setShowSettings(false); }} onNewChat={handleNewChat} chats={chats} chatsLoading={chatsLoading} activeChatId={activeChat?.id} onSelectChat={(chat) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActiveChat(chat); setSendError(null); setSidebarVisible(false); }} onRenameChat={(chatId, newTitle) => { setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title: newTitle } : c)); setActiveChat((prev) => prev?.id === chatId ? { ...prev, title: newTitle } : prev); }} showSettings={showSettings} onToggleSettings={() => setShowSettings((p) => !p)} />
+      <Sidebar visible={sidebarVisible} onClose={() => setSidebarVisible(false)} onNewChat={handleNewChat} chats={chats} chatsLoading={chatsLoading} activeChatId={activeChat?.id} onSelectChat={(chat) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActiveChat(chat); setSendError(null); setSidebarVisible(false); }} onRenameChat={(chatId, newTitle) => { setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title: newTitle } : c)); setActiveChat((prev) => prev?.id === chatId ? { ...prev, title: newTitle } : prev); }} />
+      <SettingsOverlay visible={showSettings} onClose={() => setShowSettings(false)} />
     </View>
   );
 }
+
+function SettingsOverlay({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const colors = useColors();
+  const scheme = useColorScheme();
+  const { mode, setMode, resolved } = useThemeMode();
+  const t = typography(colors);
+  const [clearConfirm, setClearConfirm] = useState(false);
+  const tx = useRef(new Animated.Value(300)).current;
+  const fade = useRef(new Animated.Value(0)).current;
+  const isDark = mode === 'dark' || (mode === 'system' && resolved === 'dark');
+
+  useEffect(() => {
+    const duration = 200;
+    Animated.parallel([
+      Animated.timing(tx, { toValue: visible ? 0 : 300, duration, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.timing(fade, { toValue: visible ? 1 : 0, duration, useNativeDriver: true }),
+    ]).start();
+  }, [visible]);
+
+  function toggleTheme() {
+    if (mode === 'system') setMode('dark');
+    else if (mode === 'dark') setMode('light');
+    else setMode('system');
+  }
+
+  function getLabel() {
+    if (mode === 'system') return `System (${resolved === 'dark' ? 'Dark' : 'Light'})`;
+    return mode === 'dark' ? 'Dark' : 'Light';
+  }
+
+  function getIcon() {
+    if (mode === 'system') return <Monitor size={20} color={colors.accent} />;
+    return isDark ? <Moon size={20} color={colors.accent} /> : <Sun size={20} color={colors.accent} />;
+  }
+
+  async function execClearHistory() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: chats } = await supabase.from('chats').select('id').eq('user_id', user.id);
+      if (chats) {
+        for (const c of chats) {
+          await supabase.from('messages').delete().eq('chat_id', c.id);
+          await supabase.from('chats').delete().eq('id', c.id);
+        }
+      }
+    } catch {}
+    setClearConfirm(false);
+  }
+
+  return (
+    <>
+      {visible && (
+        <Animated.View style={[sSettings.overlay, { backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.2)', opacity: fade }]}>
+          <Pressable style={sSettings.overlayPress} onPress={onClose} />
+          <Animated.View style={[sSettings.panel, { backgroundColor: colors.sidebarBg, transform: [{ translateX: tx }] }]}>
+            <View style={sSettings.header}>
+              <Text style={t.title}>Settings</Text>
+              <Pressable onPress={onClose} style={sSettings.closeBtn} hitSlop={hitSlop}>
+                <X size={22} color={colors.textMuted} />
+              </Pressable>
+            </View>
+
+            <View style={sSettings.section}>
+              <Text style={[t.captionMedium, sSettings.sectionTitle]}>APPEARANCE</Text>
+              <Pressable
+                style={({ pressed }) => [sSettings.row, pressed && { opacity: 0.7 }]}
+                onPress={toggleTheme}
+              >
+                <View style={sSettings.rowLeft}>
+                  {getIcon()}
+                  <View>
+                    <Text style={[t.bodyMedium, { color: colors.textPrimary }]}>Dark Mode</Text>
+                    <Text style={[t.caption, { marginTop: 2 }]}>{getLabel()}</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={isDark}
+                  onValueChange={toggleTheme}
+                  trackColor={{ false: colors.composerBorder, true: colors.accent }}
+                  thumbColor={isDark ? '#fff' : '#f4f3f4'}
+                />
+              </Pressable>
+            </View>
+
+            <View style={sSettings.section}>
+              <Text style={[t.captionMedium, sSettings.sectionTitle]}>DATA</Text>
+              <Pressable
+                style={({ pressed }) => [sSettings.row, pressed && { opacity: 0.7 }]}
+                onPress={() => setClearConfirm(true)}
+              >
+                <View style={sSettings.rowLeft}>
+                  <Trash2 size={20} color={colors.danger} />
+                  <View>
+                    <Text style={[t.bodyMedium, { color: colors.danger }]}>Clear chat history</Text>
+                    <Text style={[t.caption, { marginTop: 2 }]}>Delete all conversations</Text>
+                  </View>
+                </View>
+              </Pressable>
+            </View>
+
+            <Text style={[t.caption, sSettings.footer]}>Zeno v1.0.0</Text>
+          </Animated.View>
+        </Animated.View>
+      )}
+      <ActionDialog
+        visible={clearConfirm}
+        title="Clear History"
+        message="Delete all chats and messages? This cannot be undone."
+        actions={[
+          { label: 'Cancel', onPress: () => setClearConfirm(false) },
+          { label: 'Clear', destructive: true, onPress: execClearHistory },
+        ]}
+        onClose={() => setClearConfirm(false)}
+      />
+    </>
+  );
+}
+
+const sSettings = StyleSheet.create({
+  overlay: { ...StyleSheet.absoluteFill, zIndex: 110 },
+  overlayPress: { ...StyleSheet.absoluteFill },
+  panel: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 300, paddingTop: 56 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 16 },
+  closeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  section: { paddingHorizontal: 16, marginBottom: 16 },
+  sectionTitle: { marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  footer: { textAlign: 'center', marginTop: 24 },
+});
 
 const s = StyleSheet.create({
   container: { flex: 1 },
