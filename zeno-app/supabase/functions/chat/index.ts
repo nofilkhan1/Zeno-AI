@@ -194,7 +194,7 @@ async function runSearchFlow(
         ...msgs,
         { role: 'assistant', content: null, tool_calls: [{ id: tc.id, type: 'function', function: { name: 'search_web', arguments: tc.function.arguments } }] },
         { role: 'tool', tool_call_id: tc.id, content: toolContent },
-        { role: 'system', content: 'Cite sources inline using bracketed numbers like [1], [2] etc. corresponding to the numbered sources above. Place the citation marker immediately after the claim it supports.' },
+        { role: 'system', content: 'CRITICAL: You MUST cite sources inline using bracketed numbers. Write [1] after a fact from the first source, [2] after a fact from the second source, etc.\n\nExample:\n"Paris is the capital of France[1]. The Eiffel Tower was built in 1889[2] for the World\'s Fair[2]. It stands 330m tall[1]."\n\nRules:\n- Place [N] immediately after the claim, before punctuation.\n- NEVER output sources as a numbered list or separate block.\n- Cite EVERY factual claim. Use multiple markers per sentence if needed.' },
       ];
 
       console.log(`[${requestId}] calling NVIDIA with search results...`);

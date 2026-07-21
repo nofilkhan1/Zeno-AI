@@ -16,7 +16,7 @@ type Segment = { type: 'text'; text: string } | { type: 'citation'; index: numbe
 
 function parseCitations(content: string): Segment[] {
   const parts: Segment[] = [];
-  const regex = /\[(\d+)\]/g;
+  const regex = /\[\s*(\d+)\s*\]/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(content)) !== null) {
