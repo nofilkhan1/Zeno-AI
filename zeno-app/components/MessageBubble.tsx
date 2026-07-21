@@ -152,7 +152,7 @@ const sr = StyleSheet.create({
   userContainer: { alignItems: 'flex-end', paddingHorizontal: 16, marginVertical: 8 },
   userBubble: { maxWidth: '80%', borderRadius: radii.md, borderBottomRightRadius: 4, paddingHorizontal: 16, paddingVertical: 12 },
   assistantContainer: { paddingHorizontal: 16, marginVertical: 8 },
-  citationMark: { fontSize: 12, lineHeight: 16, fontFamily: 'Inter_500Medium' },
+  citationMark: { fontSize: 12, lineHeight: 16, fontFamily: 'Inter_500Medium', marginLeft: 1 },
   answeredBy: { fontSize: 13, marginTop: 8, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
   webSearchBadge: { alignSelf: 'flex-start', marginTop: 8, borderRadius: radii.sm, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
