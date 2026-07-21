@@ -91,7 +91,7 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
             return (
               <Text
                 key={i}
-                style={[sr.citationMark, { color: colors.textMuted }]}
+                style={[sr.citationMark, { color: colors.accent }]}
                 onPress={(e) => {
                   const { pageX, pageY } = e.nativeEvent;
                   setPopup((prev) => prev && prev.index === seg.index ? null : { index: seg.index, x: pageX, y: pageY });
@@ -158,7 +158,7 @@ const sr = StyleSheet.create({
   badgeText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
   popupContainer: { flex: 1 },
   popupOverlay: { ...StyleSheet.absoluteFill },
-  popupCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: radii.sm, gap: 10 },
+  popupCard: { flexDirection: 'row', alignItems: 'center', width: POPUP_WIDTH, padding: 12, borderRadius: radii.sm, gap: 10 },
   favicon: { width: 20, height: 20, borderRadius: 4 },
   popupContent: { flex: 1 },
   popupDomain: { fontSize: 12, fontFamily: 'Inter_400Regular' },
