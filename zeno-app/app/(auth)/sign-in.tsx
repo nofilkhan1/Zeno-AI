@@ -15,17 +15,28 @@ export default function SignInScreen() {
 
   async function signIn() {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) Alert.alert('Sign in error', error.message);
-    setLoading(false);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) { Alert.alert('Sign in error', error.message); return; }
+      router.replace('/(chat)');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Sign in failed');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function signUp() {
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) Alert.alert('Sign up error', error.message);
-    else Alert.alert('Check your email', 'A confirmation link has been sent to your email.');
-    setLoading(false);
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) { Alert.alert('Sign up error', error.message); return; }
+      Alert.alert('Check your email', 'A confirmation link has been sent to your email.');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Sign up failed');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
