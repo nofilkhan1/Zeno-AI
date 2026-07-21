@@ -252,10 +252,10 @@ Deno.serve(async (req) => {
     const { data: history } = await supabase.from('messages').select('role, content').eq('chat_id', chatId).order('created_at');
     const msgs = (history || []).map((m) => ({ role: m.role, content: m.content }));
 
-    // Add system date message to every request
+    // Prepend system date message — placed FIRST, not last
     const today = new Date().toISOString().split('T')[0];
-    const dateMsg = { role: 'system', content: `Current date: ${today}. Always respond using this current date for any time-sensitive queries.` };
-    const msgsWithDate = [...msgs, dateMsg];
+    const dateMsg = { role: 'system', content: `Internal note — today's actual date is ${today}. This is only for your private reference when deciding if you need current information. Never state, hint at, or call attention to this date in your response. Answer factual questions directly from your knowledge without time-relative hedging like "as of today" or "currently" unless the user's question is specifically about dates, time, or current events.` };
+    const msgsWithDate = [dateMsg, ...msgs];
 
     // searchRequested must be the boolean true — no truthy coercion
     const shouldSearch = searchRequested === true;
