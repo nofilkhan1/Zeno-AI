@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, Linking, Pressable, Modal, Image, Dimensions } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Linking, Pressable, Modal, Image, Dimensions, Animated } from 'react-native';
 import { Source } from '../lib/types';
 import { useColors, typography, radii, softShadow } from '../lib/theme';
 
@@ -12,7 +12,7 @@ type Props = {
   webSearch?: boolean | null;
 };
 
-type Segment = { type: 'text'; text: string } | { type: 'citation'; index: number; label: string };
+type Segment = { type: 'text'; text: string } | { type: 'citation'; index: number };
 
 function parseCitations(content: string): Segment[] {
   const parts: Segment[] = [];
@@ -23,7 +23,7 @@ function parseCitations(content: string): Segment[] {
     if (match.index > lastIndex) {
       parts.push({ type: 'text', text: content.slice(lastIndex, match.index) });
     }
-    parts.push({ type: 'citation', index: parseInt(match[1], 10), label: match[0] });
+    parts.push({ type: 'citation', index: parseInt(match[1], 10) });
     lastIndex = regex.lastIndex;
   }
   if (lastIndex < content.length) {
@@ -52,12 +52,22 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
   const isUser = role === 'user';
   const hasSources = sources && sources.length > 0;
   const [popup, setPopup] = useState<{ index: number; x: number; y: number } | null>(null);
+  const popupAnim = useRef(new Animated.Value(0)).current;
 
   const segments = hasSources ? parseCitations(content) : [{ type: 'text' as const, text: content }];
   const selectedSource = popup && sources ? sources[popup.index - 1] : null;
 
   const popupLeft = popup ? Math.max(16, Math.min(popup.x - 16, SCREEN_WIDTH - POPUP_WIDTH - 16)) : 0;
   const popupTop = popup ? (popup.y > 300 ? popup.y - 130 : popup.y + 20) : 0;
+
+  useEffect(() => {
+    if (popup) {
+      popupAnim.setValue(0);
+      Animated.timing(popupAnim, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+    } else {
+      popupAnim.setValue(0);
+    }
+  }, [popup]);
 
   const showAnsweredBy = !!answeredByModel && answeredByModel !== chatModel;
   const lastSegment = answeredByModel?.split('/').pop() || '';
@@ -81,17 +91,17 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
             return (
               <Text
                 key={i}
-                style={[sr.citationMark, { color: colors.accent }]}
+                style={[sr.citationMark, { color: colors.textMuted }]}
                 onPress={(e) => {
                   const { pageX, pageY } = e.nativeEvent;
-                  setPopup({ index: seg.index, x: pageX, y: pageY });
+                  setPopup((prev) => prev && prev.index === seg.index ? null : { index: seg.index, x: pageX, y: pageY });
                 }}
               >
-                {seg.label}
+                {seg.index}
               </Text>
             );
           }
-          return <Text key={i}>{seg.type === 'text' ? seg.text : seg.label}</Text>;
+          return <Text key={i}>{seg.type === 'text' ? seg.text : `[${(seg as any).index}]`}</Text>;
         })}
       </Text>
 
@@ -107,28 +117,30 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
         <Text style={[sr.answeredBy, { color: colors.textMuted }]}>Web search</Text>
       )}
 
-      <Modal visible={!!popup} transparent animationType="none" onRequestClose={() => setPopup(null)}>
+      <Modal visible={!!popup} transparent animationType="fade" onRequestClose={() => setPopup(null)}>
         <View style={sr.popupContainer}>
           <Pressable style={sr.popupOverlay} onPress={() => setPopup(null)} />
           {selectedSource && popup && (
-            <Pressable
-              style={[sr.popupCard, { backgroundColor: colors.dialogBg }, { left: popupLeft, top: popupTop }, softShadow()]}
-              onPress={() => { Linking.openURL(selectedSource.url); setPopup(null); }}
-            >
-              <Image
-                source={{ uri: getFaviconUrl(selectedSource.url) }}
-                style={sr.favicon}
-                onError={({ nativeEvent: { error } }) => {}}
-              />
-              <View style={sr.popupContent}>
-                <Text style={[sr.popupDomain, { color: colors.textMuted }]} numberOfLines={1}>
-                  {extractDomain(selectedSource.url)}
-                </Text>
-                <Text style={[sr.popupTitle, { color: colors.textPrimary }]} numberOfLines={2}>
-                  {selectedSource.title}
-                </Text>
-              </View>
-            </Pressable>
+            <Animated.View style={[{ position: 'absolute', left: popupLeft, top: popupTop }, { opacity: popupAnim, transform: [{ scale: popupAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }]}>
+              <Pressable
+                style={[sr.popupCard, { backgroundColor: colors.dialogBg }, softShadow()]}
+                onPress={() => { Linking.openURL(selectedSource.url); setPopup(null); }}
+              >
+                <Image
+                  source={{ uri: getFaviconUrl(selectedSource.url) }}
+                  style={sr.favicon}
+                  onError={({ nativeEvent: { error } }) => {}}
+                />
+                <View style={sr.popupContent}>
+                  <Text style={[sr.popupDomain, { color: colors.textMuted }]} numberOfLines={1}>
+                    {extractDomain(selectedSource.url)}
+                  </Text>
+                  <Text style={[sr.popupTitle, { color: colors.textPrimary }]} numberOfLines={2}>
+                    {selectedSource.title}
+                  </Text>
+                </View>
+              </Pressable>
+            </Animated.View>
           )}
         </View>
       </Modal>
@@ -140,13 +152,13 @@ const sr = StyleSheet.create({
   userContainer: { alignItems: 'flex-end', paddingHorizontal: 16, marginVertical: 8 },
   userBubble: { maxWidth: '80%', borderRadius: radii.md, borderBottomRightRadius: 4, paddingHorizontal: 16, paddingVertical: 12 },
   assistantContainer: { paddingHorizontal: 16, marginVertical: 8 },
-  citationMark: { fontSize: 14, fontWeight: '700', fontFamily: 'Inter_700Bold', textDecorationLine: 'underline' },
+  citationMark: { fontSize: 12, lineHeight: 16, fontFamily: 'Inter_500Medium' },
   answeredBy: { fontSize: 13, marginTop: 8, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
   webSearchBadge: { alignSelf: 'flex-start', marginTop: 8, borderRadius: radii.sm, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
   popupContainer: { flex: 1 },
   popupOverlay: { ...StyleSheet.absoluteFill },
-  popupCard: { position: 'absolute', width: POPUP_WIDTH, flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: radii.sm, gap: 10 },
+  popupCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: radii.sm, gap: 10 },
   favicon: { width: 20, height: 20, borderRadius: 4 },
   popupContent: { flex: 1 },
   popupDomain: { fontSize: 12, fontFamily: 'Inter_400Regular' },
