@@ -12,11 +12,13 @@ export default function ChatLayout() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.replace('/(auth)/sign-in');
-      else setSession(session);
-      setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (!session) router.replace('/(auth)/sign-in');
+        else setSession(session);
+      })
+      .catch(() => { router.replace('/(auth)/sign-in'); })
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) {

@@ -12,7 +12,10 @@ export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setLoading(false); });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => { setSession(session); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { setSession(session); });
     return () => subscription.unsubscribe();
   }, []);
@@ -22,9 +25,10 @@ export function useAuth() {
 export default function RootLayout() {
   const { loading } = useAuth();
   const scheme = useColorScheme();
-  const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_700Bold });
+  const [fontsLoaded, fontsError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_700Bold });
+  const fontsReady = fontsLoaded || !!fontsError;
 
-  if (!fontsLoaded || loading) {
+  if (!fontsReady || loading) {
     const bg = scheme === 'dark' ? '#2D2B28' : '#F5F4EF';
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: bg }}>
