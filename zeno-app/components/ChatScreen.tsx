@@ -69,8 +69,14 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
   const listRef = useRef<FlatList>(null);
   const prevLen = useRef(0);
 
-  const [isRecording, setIsRecording] = useState(false);
+  const [isRecording, _setIsRecording] = useState(false);
   const [inputText, setInputText] = useState('');
+
+  const setIsRecording = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    const resolved = typeof value === 'function' ? (value as (prev: boolean) => boolean)(isRecording) : value;
+    console.log('[STT-PARENT] setIsRecording(' + resolved + ') stack:', new Error().stack?.split('\n').slice(2, 6).join(' | '));
+    _setIsRecording(value);
+  }, [isRecording]);
 
   useEffect(() => {
     if (messages.length > prevLen.current) {
