@@ -1,9 +1,10 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { FlatList, View, StyleSheet, Text, Pressable, Animated, Easing, useColorScheme } from 'react-native';
 import { X, Sparkles } from 'lucide-react-native';
 import { Message } from '../lib/types';
 import MessageBubble from './MessageBubble';
 import InputBar from './InputBar';
+import VoiceRecorder from './VoiceRecorder';
 import { useColors, typography, radii } from '../lib/theme';
 
 type Props = {
@@ -68,12 +69,19 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
   const listRef = useRef<FlatList>(null);
   const prevLen = useRef(0);
 
+  const [isRecording, setIsRecording] = useState(false);
+  const [inputText, setInputText] = useState('');
+
   useEffect(() => {
     if (messages.length > prevLen.current) {
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
     }
     prevLen.current = messages.length;
   }, [messages.length]);
+
+  function handleSend(text: string) {
+    onSend?.(text);
+  }
 
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
@@ -105,12 +113,25 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
           <Text style={[s.thinkingText, { color: colors.textMuted }]}>Thinking…</Text>
         </View>
       )}
-      <InputBar
-        onSend={(text) => onSend?.(text)}
-        disabled={sending}
-        searchArmed={searchArmed}
-        onToggleSearch={onToggleSearch}
-      />
+      {isRecording ? (
+        <VoiceRecorder
+          onTranscript={(text) => {
+            setInputText(text);
+            setIsRecording(false);
+          }}
+          onCancel={() => setIsRecording(false)}
+        />
+      ) : (
+        <InputBar
+          onSend={handleSend}
+          disabled={sending}
+          searchArmed={searchArmed}
+          onToggleSearch={onToggleSearch}
+          onStartRecording={() => setIsRecording(true)}
+          value={inputText}
+          onChangeText={setInputText}
+        />
+      )}
     </View>
   );
 }
