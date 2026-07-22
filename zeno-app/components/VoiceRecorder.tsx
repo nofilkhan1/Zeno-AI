@@ -279,19 +279,21 @@ export default function VoiceRecorder({ onTranscript, onStop, onCancel }: Props)
         ) : (
           <>
             <View style={s.centerContent}>
-              <Animated.View
-                style={[
-                  s.micCircle,
-                  {
-                    backgroundColor: colors.accent + '18',
-                    transform: [{ scale: stage === 'recording' ? pulseAnim : 1 }],
-                  },
-                ]}
-              >
-                <View style={[s.micInner, { backgroundColor: colors.accent }]}>
-                  <Mic size={28} color="#fff" />
-                </View>
-              </Animated.View>
+              <Pressable onPress={stopRecording} disabled={stage !== 'recording'}>
+                <Animated.View
+                  style={[
+                    s.micCircle,
+                    {
+                      backgroundColor: colors.accent + '18',
+                      transform: [{ scale: stage === 'recording' ? pulseAnim : 1 }],
+                    },
+                  ]}
+                >
+                  <View style={[s.micInner, { backgroundColor: colors.accent }]}>
+                    <Mic size={28} color="#fff" />
+                  </View>
+                </Animated.View>
+              </Pressable>
             </View>
 
             <View style={s.transcriptArea}>

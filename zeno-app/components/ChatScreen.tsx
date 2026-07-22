@@ -123,7 +123,7 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
         <VoiceRecorder
           onTranscript={(text) => setInputText(text)}
           onStop={() => setIsRecording(false)}
-          onCancel={() => setIsRecording(false)}
+          onCancel={() => { setInputText(''); setIsRecording(false); }}
         />
       ) : (
         <InputBar
