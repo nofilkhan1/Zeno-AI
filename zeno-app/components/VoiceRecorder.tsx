@@ -102,26 +102,16 @@ export default function VoiceRecorder({ onTranscript, onStop, onCancel }: Props)
 
     setStage('connecting');
 
-    // 1. Get session id from Edge Function
-    let sessionId = '';
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('No session');
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/speech-token`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (!res.ok) throw new Error('Session request failed');
-      const data = await res.json();
-      sessionId = data.session_id;
-    } catch (err) {
-      console.error('[STT] Session fetch error:', err);
-      setErrorMsg('Failed to connect. Check your network and try again.');
+    // Get the Supabase JWT and pass it directly as a query parameter
+    // (no two-step HTTP handshake — JWT is validated in the WS onopen handler)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setErrorMsg('Not signed in.');
       setStage('error');
       return;
     }
 
-    // 2. Open WebSocket to Edge Function (proxies to Deepgram)
-    const ws = new WebSocket(`wss://${SUPABASE_HOST}/functions/v1/speech-token?session=${sessionId}`);
+    const ws = new WebSocket(`wss://${SUPABASE_HOST}/functions/v1/speech-token?token=${session.access_token}`);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 

@@ -4,52 +4,17 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const deepgramApiKey = Deno.env.get('DEEPGRAM_API_KEY');
 
-const sessions = new Map<string, { userId: string; expiresAt: number }>();
-
 Deno.serve(async (req) => {
   const isWebSocket = req.headers.get('upgrade')?.toLowerCase() === 'websocket';
 
-  // ── HTTP GET: create a session id ──────────────────────────
   if (!isWebSocket) {
-    if (!supabaseUrl || !supabaseServiceKey || !deepgramApiKey) {
-      return new Response(JSON.stringify({ error: 'Server misconfigured' }), {
-        status: 500, headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
-        status: 401, headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    try {
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
-      const token = authHeader.replace('Bearer ', '');
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-      if (authError || !user) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401, headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      const sessionId = crypto.randomUUID();
-      sessions.set(sessionId, { userId: user.id, expiresAt: Date.now() + 60_000 });
-      return new Response(JSON.stringify({ session_id: sessionId }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    } catch (err) {
-      console.error('[STT-PROXY] HTTP error:', err);
-      return new Response(JSON.stringify({ error: String(err) }), {
-        status: 500, headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    return new Response('This endpoint only accepts WebSocket connections', { status: 400 });
   }
 
   // ── WebSocket: upgrade immediately, before any logic ─────
-  // Must happen first to prevent Supabase runtime from
-  // killing the process (EarlyDrop) during sync operations.
   const { socket: clientSocket, response } = Deno.upgradeWebSocket(req);
   const url = new URL(req.url);
-  const sessionId = url.searchParams.get('session');
+  const token = url.searchParams.get('token');
 
   let dgWs: WebSocket | null = null;
   let dgStarted = false;
@@ -65,7 +30,7 @@ Deno.serve(async (req) => {
       return;
     }
     console.log('[STT-PROXY] Creating DG WS');
-    dgWs = new WebSocket('wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&interim_results=true', ['token', deepgramApiKey]);
+    dgWs = new WebSocket('wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&model=nova-2&language=en&interim_results=true&endpointing=400&smart_format=true&punctuate=true', ['token', deepgramApiKey]);
 
     dgWs.onopen = () => {
       const n = pending.length;
@@ -96,39 +61,26 @@ Deno.serve(async (req) => {
     };
   }
 
-  // Wire up onclose FIRST so it's ready before session
-  // validation (which may close the socket immediately).
-  let closeResolve: () => void;
-  const keepAlive = new Promise<void>((resolve) => { closeResolve = resolve; });
-
-  clientSocket.onclose = (e) => {
-    console.log('[STT-PROXY] Client CLOSED code:', e.code, 'reason:', e.reason, 'msgs:', clientMsgCount);
-    if (dgWs) dgWs.close();
-    closeResolve();
-  };
-
-  clientSocket.onerror = () => {
-    console.error('[STT-PROXY] Client error');
-    if (dgWs) dgWs.close();
-    closeResolve();
-  };
-
-  // Validate session after upgrade (inside socket.onopen)
-  clientSocket.onopen = () => {
-    if (!sessionId) {
-      console.log('[STT-PROXY] Missing session, closing');
-      clientSocket.close(4001, 'Missing session');
+  // Validate JWT directly — no shared state needed
+  clientSocket.onopen = async () => {
+    if (!token) {
+      console.log('[STT-PROXY] Missing token, closing');
+      clientSocket.close(4001, 'Missing auth token');
       return;
     }
-    const session = sessions.get(sessionId);
-    if (!session || session.expiresAt < Date.now()) {
-      sessions.delete(sessionId);
-      console.log('[STT-PROXY] Invalid/expired session, closing');
-      clientSocket.close(4001, 'Invalid or expired session');
+    if (!supabaseUrl || !supabaseServiceKey || !deepgramApiKey) {
+      console.log('[STT-PROXY] Server misconfigured');
+      clientSocket.close(1011, 'Server misconfigured');
       return;
     }
-    sessions.delete(sessionId);
-    console.log('[STT-PROXY] Session validated, ready');
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      console.log('[STT-PROXY] Invalid token, closing');
+      clientSocket.close(4001, 'Invalid auth token');
+      return;
+    }
+    console.log('[STT-PROXY] Auth validated, user:', user.id);
   };
 
   clientSocket.onmessage = (e) => {
@@ -141,8 +93,21 @@ Deno.serve(async (req) => {
     }
   };
 
-  // Keep function alive until socket closes (prevents EarlyDrop)
-  await keepAlive;
+  clientSocket.onerror = () => {
+    console.error('[STT-PROXY] Client error');
+    if (dgWs) dgWs.close();
+  };
+
+  // Background keepalive — not awaited, so 101 response is immediate
+  (async () => {
+    await new Promise<void>((resolve) => {
+      clientSocket.onclose = (e) => {
+        console.log('[STT-PROXY] Client CLOSED code:', e.code, 'reason:', e.reason, 'msgs:', clientMsgCount);
+        if (dgWs) dgWs.close();
+        resolve();
+      };
+    });
+  })();
 
   return response;
 });
