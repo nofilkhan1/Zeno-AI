@@ -117,6 +117,10 @@ export default function VoiceRecorder({ onTranscript, onCancel }: Props) {
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 
+    const wsOpenTime = Date.now();
+    let totalBytesSent = 0;
+    let chunksSent = 0;
+
     ws.onopen = () => {
       console.log('[STT] WebSocket OPEN — proxy connected');
       // Start audio stream — data will flow through the WS proxy to Deepgram
@@ -124,6 +128,10 @@ export default function VoiceRecorder({ onTranscript, onCancel }: Props) {
         console.log('[STT] Adding audioStreamBuffer listener & starting stream');
         listenerRef.current = stream.addListener('audioStreamBuffer', (buffer: AudioStreamBuffer) => {
           if (ws.readyState === WebSocket.OPEN && !cancelledRef.current) {
+            const byteLen = buffer.data.byteLength;
+            totalBytesSent += byteLen;
+            chunksSent++;
+            console.log('[STT] Sending audio chunk #' + chunksSent + ' size=' + byteLen + ' total=' + totalBytesSent);
             ws.send(buffer.data);
           }
         });
@@ -137,9 +145,19 @@ export default function VoiceRecorder({ onTranscript, onCancel }: Props) {
 
     ws.onmessage = (e) => {
       try {
-        const raw = typeof e.data === 'string' ? e.data : '';
+        let raw: string;
+        if (typeof e.data === 'string') {
+          raw = e.data;
+        } else if (e.data instanceof ArrayBuffer) {
+          raw = new TextDecoder().decode(e.data);
+        } else if (e.data && typeof e.data === 'object' && 'data' in (e.data as any)) {
+          raw = String((e.data as any).data);
+        } else {
+          raw = '';
+        }
         if (!raw) return;
         const msg = JSON.parse(raw);
+
         console.log('[STT] WS message type:', msg.type, 'is_final:', msg.is_final, 'text:', msg.channel?.alternatives?.[0]?.transcript?.substring(0, 60));
         if (msg.type === 'Results') {
           const alt = msg.channel?.alternatives?.[0];
@@ -173,7 +191,9 @@ export default function VoiceRecorder({ onTranscript, onCancel }: Props) {
     };
 
     ws.onclose = (e) => {
+      const elapsed = ((Date.now() - wsOpenTime) / 1000).toFixed(1);
       console.log('[STT] WebSocket CLOSED code:', e.code, 'reason:', e.reason);
+      console.log('[STT] Elapsed:', elapsed + 's, chunks sent:', chunksSent, 'bytes sent:', totalBytesSent);
     };
   }
 
