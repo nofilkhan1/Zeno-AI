@@ -38,6 +38,8 @@ Deno.serve(async (req) => {
       });
     }
 
+    console.log('[TTS] Calling Deepgram TTS API for text:', text.slice(0, 80));
+
     const dgRes = await fetch('https://api.deepgram.com/v1/speak?model=aura-asteria-en', {
       method: 'POST',
       headers: {
@@ -47,17 +49,22 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ text }),
     });
 
+    console.log('[TTS] Deepgram response status:', dgRes.status);
+
     if (!dgRes.ok) {
       const body = await dgRes.text().catch(() => '');
+      console.error('[TTS] Deepgram error body:', body);
       throw new Error(`Deepgram TTS error ${dgRes.status}: ${body}`);
     }
 
     const audioBuf = await dgRes.arrayBuffer();
+    console.log('[TTS] Received audio bytes:', audioBuf.byteLength);
 
     return new Response(audioBuf, {
       headers: { 'Content-Type': 'audio/wav' },
     });
   } catch (err) {
+    console.error('[TTS] Function error:', err);
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500, headers: { 'Content-Type': 'application/json' },
     });

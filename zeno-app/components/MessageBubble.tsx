@@ -201,7 +201,7 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
       </Animated.View>
 
       {ttsError ? (
-        <Text style={[sr.ttsError, { color: colors.danger }]}>TTS error</Text>
+        <Text style={[sr.ttsError, { color: colors.danger }]}>{ttsError}</Text>
       ) : null}
 
       <Modal visible={!!popup} transparent animationType="fade" onRequestClose={() => setPopup(null)}>

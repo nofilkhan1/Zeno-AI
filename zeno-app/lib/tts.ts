@@ -79,8 +79,18 @@ export function stopTTS(): void {
   setState('idle');
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 8192;
+  let result = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    result += String.fromCharCode(...chunk);
+  }
+  return btoa(result);
+}
+
 export async function speak(text: string): Promise<void> {
-  // Stop current playback
   stopFinishCheck();
   if (player) {
     try { player.pause(); } catch {}
@@ -92,6 +102,8 @@ export async function speak(text: string): Promise<void> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) throw new Error('Not signed in');
 
+    console.log('[TTS] Fetching audio for text:', text.slice(0, 80));
+
     const response = await fetch(`${SUPABASE_URL}/functions/v1/tts`, {
       method: 'POST',
       headers: {
@@ -101,32 +113,37 @@ export async function speak(text: string): Promise<void> {
       body: JSON.stringify({ text }),
     });
 
+    console.log('[TTS] Response status:', response.status);
+
     if (!response.ok) {
       const errBody = await response.json().catch(() => ({}));
+      console.error('[TTS] Error response:', errBody);
       throw new Error((errBody as any).error || `TTS error ${response.status}`);
     }
 
-    // Write audio binary to cache file
-    const blob = await response.blob();
-    const base64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+    const audioBuffer = await response.arrayBuffer();
+    console.log('[TTS] Received audio bytes:', audioBuffer.byteLength);
 
+    if (audioBuffer.byteLength === 0) {
+      throw new Error('Received empty audio response');
+    }
+
+    const base64 = arrayBufferToBase64(audioBuffer);
     const fileUri = `${FileSystem.cacheDirectory}tts-${Date.now()}.wav`;
-    await FileSystem.writeAsStringAsync(fileUri, base64.split(',')[1], {
+
+    await FileSystem.writeAsStringAsync(fileUri, base64, {
       encoding: FileSystem.EncodingType.Base64,
     });
 
-    // Create or reuse player
+    console.log('[TTS] Audio saved to:', fileUri);
+
     const p = ensurePlayer();
     p.replace({ uri: fileUri });
     setState('playing');
     p.play();
     startFinishCheck();
   } catch (err) {
+    console.error('[TTS] Error:', err);
     cleanupPlayer();
     const msg = err instanceof Error ? err.message : 'TTS failed';
     setState('error', msg);
