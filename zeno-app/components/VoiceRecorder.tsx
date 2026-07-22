@@ -23,7 +23,7 @@ function formatTime(seconds: number) {
   return `${m}:${s}`;
 }
 
-export default function VoiceRecorder({ onTranscript, onCancel }: Props) {
+export default function VoiceRecorder({ onTranscript, onStop, onCancel }: Props) {
   const colors = useColors();
   const t = typography(colors);
   const [stage, setStage] = useState<Stage>('init');
