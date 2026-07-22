@@ -86,15 +86,21 @@ Deno.serve(async (req) => {
       }
     };
 
-    clientSocket.onclose = () => {
-      console.log('[STT-PROXY] Client CLOSED, msgs:', clientMsgCount);
-      if (dgWs) dgWs.close();
-    };
-
-    clientSocket.onerror = () => {
-      console.log('[STT-PROXY] Client error');
-      if (dgWs) dgWs.close();
-    };
+    // Keep the function alive until the WebSocket closes.
+    // Without this, Supabase's runtime kills the process (EarlyDrop)
+    // immediately after the handler returns, before Deepgram connects.
+    await new Promise<void>((resolve) => {
+      clientSocket.onclose = (e) => {
+        console.log('[STT-PROXY] Client CLOSED code:', e.code, 'reason:', e.reason, 'msgs:', clientMsgCount);
+        if (dgWs) dgWs.close();
+        resolve();
+      };
+      clientSocket.onerror = () => {
+        console.error('[STT-PROXY] Client error');
+        if (dgWs) dgWs.close();
+        resolve();
+      };
+    });
 
     return response;
   }
