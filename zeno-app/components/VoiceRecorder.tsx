@@ -152,13 +152,8 @@ export default function VoiceRecorder({ onTranscript, onStop, onCancel }: Props)
     };
 
     ws.onmessage = (e) => {
+      console.log('[STT] RAW MESSAGE FROM DEEPGRAM:', typeof e.data === 'string' ? e.data : '(non-string: ' + typeof e.data + ' size=' + (e.data?.byteLength || e.data?.length || '?') + ')');
       try {
-        // Log EVERY received message with type and size
-        const dataType = typeof e.data;
-        const dataSize = e.data instanceof ArrayBuffer ? e.data.byteLength :
-          typeof e.data === 'string' ? e.data.length :
-          typeof e.data === 'object' && e.data?.byteLength ? e.data.byteLength : -1;
-        console.log('[STT] RAW MSG dataType=' + dataType + ' size=' + dataSize + ' preview=' + String(e.data).substring(0, 80));
 
         let raw: string;
         if (typeof e.data === 'string') {
