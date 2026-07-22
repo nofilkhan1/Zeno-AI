@@ -48,7 +48,12 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
   const [menuChat, setMenuChat] = useState<Chat | null>(null);
   const [deleteChat, setDeleteChat] = useState<Chat | null>(null);
   const renameInputRef = useRef<TextInput>(null);
+  const renameAnim = useRef(new Animated.Value(0)).current;
   const t = typography(colors);
+
+  useEffect(() => {
+    Animated.timing(renameAnim, { toValue: renamingChatId ? 1 : 0, duration: 200, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
+  }, [renamingChatId]);
 
   useEffect(() => {
     const duration = 200;
@@ -107,7 +112,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
         <MessageSquare size={18} color={isActive ? colors.accent : colors.textMuted} />
         <View style={s.chatItemContent}>
           {isRenaming ? (
-            <View style={s.renameRow}>
+            <Animated.View style={[s.renameRow, { opacity: renameAnim, transform: [{ translateY: renameAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }]}>
               <TextInput
                 ref={renameInputRef}
                 style={[s.renameInput, { color: colors.textPrimary, borderColor: colors.accent }]}
@@ -123,7 +128,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
               <Pressable onPress={cancelRename} hitSlop={hitSlop}>
                 <X size={16} color={colors.textMuted} />
               </Pressable>
-            </View>
+            </Animated.View>
           ) : (
             <>
               <Text style={[t.bodyMedium, { color: isActive ? colors.textPrimary : colors.textMuted }]} numberOfLines={1}>

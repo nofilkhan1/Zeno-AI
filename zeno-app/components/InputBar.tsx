@@ -178,7 +178,7 @@ export default function InputBar({ onSend, disabled, searchArmed, onToggleSearch
 const s = StyleSheet.create({
   wrapper: { borderWidth: 1, borderRadius: radii.md, marginHorizontal: 12, marginBottom: 12 },
   container: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 8, paddingVertical: 6 },
-  plusBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
+  plusBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, marginLeft: -1 },
   inputWrapper: { flex: 1 },
   input: { paddingHorizontal: 12, paddingVertical: 12, fontSize: 16, maxHeight: 120, fontFamily: 'Inter_400Regular' },
   sendButton: { borderRadius: 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },

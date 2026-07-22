@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { FlatList, View, StyleSheet, Text, Pressable, Animated, Easing, useColorScheme } from 'react-native';
-import { X, Sparkles } from 'lucide-react-native';
+import { X, Sparkles, ChevronDown } from 'lucide-react-native';
 import { Message } from '../lib/types';
 import MessageBubble from './MessageBubble';
 import InputBar from './InputBar';
@@ -78,8 +78,32 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
     _setIsRecording(value);
   }, [isRecording]);
 
+  // Scroll-to-bottom
+  const nearBottom = useRef(true);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const scrollBtnAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
-    if (messages.length > prevLen.current) {
+    Animated.timing(scrollBtnAnim, { toValue: showScrollBtn ? 1 : 0, duration: 200, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
+  }, [showScrollBtn]);
+
+  function scrollToBottom() {
+    listRef.current?.scrollToEnd({ animated: true });
+  }
+
+  function handleScroll(e: any) {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const distFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
+    const wasNear = nearBottom.current;
+    const nowNear = distFromBottom < 120;
+    nearBottom.current = nowNear;
+    if (wasNear !== nowNear) {
+      setShowScrollBtn(!nowNear);
+    }
+  }
+
+  useEffect(() => {
+    if (messages.length > prevLen.current && nearBottom.current) {
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
     }
     prevLen.current = messages.length;
@@ -97,6 +121,8 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
         data={messages}
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
+        onScroll={handleScroll}
+        scrollEventThrottle={100}
         renderItem={({ item, index }) => {
           if (item.role === 'assistant' && !item.content) return null;
           return (
@@ -113,6 +139,25 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
           </View>
         }
       />
+
+      <Animated.View
+        pointerEvents={showScrollBtn ? 'auto' : 'none'}
+        style={[
+          s.scrollToBottom,
+          {
+            opacity: scrollBtnAnim,
+            transform: [{ scale: scrollBtnAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }],
+          },
+        ]}
+      >
+        <Pressable
+          style={({ pressed }) => [s.scrollBtnInner, { backgroundColor: colors.composerBg, borderColor: colors.composerBorder }, pressed && { opacity: 0.7 }]}
+          onPress={scrollToBottom}
+        >
+          <ChevronDown size={20} color={colors.textMuted} />
+        </Pressable>
+      </Animated.View>
+
       {hasPendingAssistant && (
         <View style={[s.thinkingBar, { backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', borderColor: colors.composerBorder }]}>
           <Sparkles size={16} color={colors.accent} />
@@ -150,4 +195,6 @@ const s = StyleSheet.create({
   list: { paddingTop: 8, paddingBottom: 8 },
   listEmpty: { flexGrow: 1, justifyContent: 'center' },
   empty: { alignItems: 'center', paddingHorizontal: 24 },
+  scrollToBottom: { position: 'absolute', bottom: 8, alignSelf: 'center', zIndex: 50 },
+  scrollBtnInner: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
 });

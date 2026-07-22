@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, ActivityIndicator, Pressable, StatusBar, useColorScheme } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ActivityIndicator, Pressable, StatusBar, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useColors, typography, radii } from '../../lib/theme';
@@ -12,15 +12,17 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   async function signIn() {
     setLoading(true);
+    setErrorMsg('');
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { Alert.alert('Sign in error', error.message); return; }
+      if (error) { setErrorMsg(error.message); return; }
       router.replace('/(chat)');
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Sign in failed');
+      setErrorMsg(err?.message || 'Sign in failed');
     } finally {
       setLoading(false);
     }
@@ -28,12 +30,13 @@ export default function SignInScreen() {
 
   async function signUp() {
     setLoading(true);
+    setErrorMsg('');
     try {
       const { error } = await supabase.auth.signUp({ email, password });
-      if (error) { Alert.alert('Sign up error', error.message); return; }
-      Alert.alert('Check your email', 'A confirmation link has been sent to your email.');
+      if (error) { setErrorMsg(error.message); return; }
+      // no need for native alert on success — user can check their email
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Sign up failed');
+      setErrorMsg(err?.message || 'Sign up failed');
     } finally {
       setLoading(false);
     }
@@ -58,6 +61,9 @@ export default function SignInScreen() {
             </Pressable>
           </View>
         )}
+        {errorMsg ? (
+          <Text style={[t.caption, { color: colors.danger, textAlign: 'center', marginTop: 12 }]}>{errorMsg}</Text>
+        ) : null}
       </View>
     </View>
   );

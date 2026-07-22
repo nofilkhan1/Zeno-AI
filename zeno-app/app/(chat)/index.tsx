@@ -21,7 +21,6 @@ function randomId() {
 }
 
 const EDGE_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/chat`;
-const ACTIVE_CHAT_KEY = 'zeno-active-chat-id';
 const LAST_MODEL_KEY = 'zeno-last-model';
 const DEFAULT_MODEL_ID = 'nvidia/nemotron-3-nano-30b-a3b';
 
@@ -43,24 +42,12 @@ export default function ChatListScreen() {
   const searchArmedRef = useRef(false);
 
   useEffect(() => { loadChats(); }, []);
-  useEffect(() => { if (activeChat) { loadMessages(activeChat.id); persistActiveChat(activeChat.id); } }, [activeChat?.id]);
-
-  async function persistActiveChat(id: string) {
-    try { await AsyncStorage.setItem(ACTIVE_CHAT_KEY, id); } catch {}
-  }
+  useEffect(() => { if (activeChat) { loadMessages(activeChat.id); } }, [activeChat?.id]);
 
   async function loadChats() {
     setChatsLoading(true);
-    let restoredId: string | null = null;
-    try { restoredId = await AsyncStorage.getItem(ACTIVE_CHAT_KEY); } catch {}
     const { data } = await supabase.from('chats').select('*').order('updated_at', { ascending: false });
-    if (data) {
-      setChats(data);
-      if (data.length > 0 && !activeChat) {
-        const restored = restoredId ? data.find((c) => c.id === restoredId) : undefined;
-        setActiveChat(restored || data[0]);
-      }
-    }
+    if (data) setChats(data);
     setChatsLoading(false);
   }
 
@@ -198,17 +185,30 @@ function SettingsOverlay({ visible, onClose }: { visible: boolean; onClose: () =
   const { mode, setMode, resolved } = useThemeMode();
   const t = typography(colors);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const tx = useRef(new Animated.Value(300)).current;
   const fade = useRef(new Animated.Value(0)).current;
   const isDark = mode === 'dark' || (mode === 'system' && resolved === 'dark');
 
   useEffect(() => {
     const duration = 200;
-    Animated.parallel([
-      Animated.timing(tx, { toValue: visible ? 0 : 300, duration, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-      Animated.timing(fade, { toValue: visible ? 1 : 0, duration, useNativeDriver: true }),
-    ]).start();
+    if (visible) {
+      setMounted(true);
+      Animated.parallel([
+        Animated.timing(tx, { toValue: 0, duration, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        Animated.timing(fade, { toValue: 1, duration, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(tx, { toValue: 300, duration, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        Animated.timing(fade, { toValue: 0, duration, useNativeDriver: true }),
+      ]).start(() => setMounted(false));
+    }
   }, [visible]);
+
+  function handleClose() {
+    onClose();
+  }
 
   function toggleTheme() {
     if (mode === 'system') setMode('dark');
@@ -243,9 +243,9 @@ function SettingsOverlay({ visible, onClose }: { visible: boolean; onClose: () =
 
   return (
     <>
-      {visible && (
+      {mounted && (
         <Animated.View style={[sSettings.overlay, { backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.2)', opacity: fade }]}>
-          <Pressable style={sSettings.overlayPress} onPress={onClose} />
+          <Pressable style={sSettings.overlayPress} onPress={handleClose} />
           <Animated.View style={[sSettings.panel, { backgroundColor: colors.sidebarBg, paddingTop: insets.top + 10, transform: [{ translateX: tx }] }]}>
             <View style={sSettings.header}>
               <Text style={t.title}>Settings</Text>
