@@ -127,7 +127,7 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
           if (item.role === 'assistant' && !item.content) return null;
           return (
             <FadeSlideView index={index}>
-              <MessageBubble role={item.role} content={item.content || ''} sources={item.sources} answeredByModel={item.answered_by_model} chatModel={chatModel} webSearch={item.used_web_search} />
+              <MessageBubble role={item.role} content={item.content || ''} sources={item.sources} answeredByModel={item.answered_by_model} chatModel={chatModel} webSearch={item.used_web_search} messageId={item.id} />
             </FadeSlideView>
           );
         }}
