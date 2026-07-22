@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
     console.log('[TTS] Calling Deepgram TTS API for text:', text.slice(0, 80));
 
-    const dgRes = await fetch('https://api.deepgram.com/v1/speak?model=aura-asteria-en', {
+    const dgRes = await fetch('https://api.deepgram.com/v1/speak?model=aura-orion-en', {
       method: 'POST',
       headers: {
         'Authorization': `Token ${deepgramApiKey}`,
