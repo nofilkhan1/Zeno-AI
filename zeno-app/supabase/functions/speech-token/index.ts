@@ -1,5 +1,4 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.7';
-import { WebSocket as WsWebSocket } from 'npm:ws@8.16.0';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -37,76 +36,58 @@ Deno.serve(async (req) => {
     sessions.delete(sessionId);
     const { socket: clientSocket, response } = Deno.upgradeWebSocket(req);
 
-    let dgWs: WsWebSocket | null = null;
+    let dgWs: WebSocket | null = null;
     let dgStarted = false;
     const pending: ArrayBuffer[] = [];
     let clientMsgCount = 0;
 
-    function sendStatus(status: Record<string, unknown>) {
-      if (clientSocket.readyState === WebSocket.OPEN) {
-        clientSocket.send(JSON.stringify({ type: '_proxy_status', ...status }));
-      }
-    }
-
     function ensureDg() {
       if (dgStarted) return;
       dgStarted = true;
-      console.log('[STT-PROXY] Creating DG WS via ws library with Auth header');
-      dgWs = new WsWebSocket('wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&interim_results=true', {
-        headers: { Authorization: `Token ${deepgramApiKey}` },
-      });
+      console.log('[STT-PROXY] Creating DG WS');
+      dgWs = new WebSocket('wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&interim_results=true', ['token', deepgramApiKey!]);
 
-      dgWs.on('open', () => {
+      dgWs.onopen = () => {
         const n = pending.length;
-        console.log('[STT-PROXY] DG OPEN, flushing', n, 'pending');
-        sendStatus({ event: 'dg_open', pending: n });
+        console.log('[STT-PROXY] DG OPEN, flushing', n);
         for (const buf of pending) {
           dgWs!.send(buf);
         }
         pending.length = 0;
-      });
+      };
 
-      dgWs.on('message', (data: Buffer) => {
-        const msg = data.toString();
-        console.log('[STT-PROXY] DG message rx, len:', msg.length, 'preview:', msg.substring(0, 100));
-        sendStatus({ event: 'dg_message', len: msg.length, preview: msg.substring(0, 60) });
-        if (clientSocket.readyState === WebSocket.OPEN) {
+      dgWs.onmessage = (e) => {
+        const msg = typeof e.data === 'string' ? e.data : '';
+        if (msg && clientSocket.readyState === WebSocket.OPEN) {
           clientSocket.send(msg);
         }
-      });
+      };
 
-      dgWs.on('error', (err: Error) => {
-        console.error('[STT-PROXY] DG error:', err.message);
-        sendStatus({ event: 'dg_error', message: err.message });
+      dgWs.onerror = () => {
+        console.error('[STT-PROXY] DG error');
         clientSocket.close(1011, 'Deepgram connection failed');
-      });
+      };
 
-      dgWs.on('close', (code: number, reason: Buffer) => {
-        const reasonStr = reason ? reason.toString() : '';
-        console.log('[STT-PROXY] DG CLOSED code:', code, 'reason:', reasonStr);
-        sendStatus({ event: 'dg_close', code, reason: reasonStr });
+      dgWs.onclose = (ev) => {
+        console.log('[STT-PROXY] DG CLOSED code:', ev.code, 'reason:', ev.reason);
         if (clientSocket.readyState === WebSocket.OPEN) {
-          clientSocket.close(code || 1000, reasonStr);
+          clientSocket.close(ev.code || 1000, String(ev.reason || ''));
         }
-      });
+      };
     }
 
-    let clientMsgCount = 0;
     clientSocket.onmessage = (e) => {
       ensureDg();
       clientMsgCount++;
-      const byteLen = typeof e.data === 'string' ? e.data.length : (e.data as ArrayBuffer).byteLength;
       if (dgWs && dgWs.readyState === WebSocket.OPEN) {
-        console.log('[STT-PROXY] Fwd msg #' + clientMsgCount + ' size=' + byteLen);
         dgWs.send(e.data);
       } else {
-        console.log('[STT-PROXY] Buffer msg #' + clientMsgCount + ' size=' + byteLen + ' dg_state=' + (dgWs?.readyState ?? -1));
         pending.push(e.data);
       }
     };
 
     clientSocket.onclose = () => {
-      console.log('[STT-PROXY] Client CLOSED, msgs:', clientMsgCount, 'pending:', pending.length, 'dg_state:', dgWs?.readyState ?? -1);
+      console.log('[STT-PROXY] Client CLOSED, msgs:', clientMsgCount);
       if (dgWs) dgWs.close();
     };
 

@@ -112,7 +112,8 @@ export default function VoiceRecorder({ onTranscript, onCancel }: Props) {
       if (!res.ok) throw new Error('Session request failed');
       const data = await res.json();
       sessionId = data.session_id;
-    } catch {
+    } catch (err) {
+      console.error('[STT] Session fetch error:', err);
       setErrorMsg('Failed to connect. Check your network and try again.');
       setStage('error');
       return;
