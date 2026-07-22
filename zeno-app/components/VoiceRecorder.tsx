@@ -11,6 +11,7 @@ const SUPABASE_HOST = SUPABASE_URL.replace('https://', '');
 
 type Props = {
   onTranscript: (text: string) => void;
+  onStop: () => void;
   onCancel: () => void;
 };
 
@@ -193,9 +194,11 @@ export default function VoiceRecorder({ onTranscript, onCancel }: Props) {
               return next;
             });
             setInterimText('');
+            onTranscript(finalTranscriptRef.current);
           } else {
             console.log('[STT] interim update:', text?.substring(0, 60));
             setInterimText(text);
+            onTranscript((finalTranscriptRef.current + text).trim());
           }
         } else if (msg.type === 'Error' || msg.type === 'error') {
           console.error('[STT] Deepgram error:', msg.err_msg || msg.message || JSON.stringify(msg));
@@ -225,7 +228,7 @@ export default function VoiceRecorder({ onTranscript, onCancel }: Props) {
     cleanup();
     const finalText = finalTranscriptRef.current.trim() || interimText.trim();
     onTranscript(finalText);
-    setStage('done');
+    onStop();
   }
 
   function cancelRecording() {

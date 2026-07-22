@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { FlatList, View, StyleSheet, Text, Pressable, Animated, Easing, useColorScheme } from 'react-native';
 import { X, Sparkles } from 'lucide-react-native';
 import { Message } from '../lib/types';
@@ -121,10 +121,8 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
       )}
       {isRecording ? (
         <VoiceRecorder
-          onTranscript={(text) => {
-            setInputText(text);
-            setIsRecording(false);
-          }}
+          onTranscript={(text) => setInputText(text)}
+          onStop={() => setIsRecording(false)}
           onCancel={() => setIsRecording(false)}
         />
       ) : (
