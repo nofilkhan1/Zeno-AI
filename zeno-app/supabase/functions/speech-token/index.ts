@@ -42,6 +42,12 @@ Deno.serve(async (req) => {
     const pending: ArrayBuffer[] = [];
     let clientMsgCount = 0;
 
+    function sendStatus(status: Record<string, unknown>) {
+      if (clientSocket.readyState === WebSocket.OPEN) {
+        clientSocket.send(JSON.stringify({ type: '_proxy_status', ...status }));
+      }
+    }
+
     function ensureDg() {
       if (dgStarted) return;
       dgStarted = true;
@@ -51,7 +57,9 @@ Deno.serve(async (req) => {
       });
 
       dgWs.on('open', () => {
-        console.log('[STT-PROXY] DG OPEN');
+        const n = pending.length;
+        console.log('[STT-PROXY] DG OPEN, flushing', n, 'pending');
+        sendStatus({ event: 'dg_open', pending: n });
         for (const buf of pending) {
           dgWs!.send(buf);
         }
@@ -60,6 +68,8 @@ Deno.serve(async (req) => {
 
       dgWs.on('message', (data: Buffer) => {
         const msg = data.toString();
+        console.log('[STT-PROXY] DG message rx, len:', msg.length, 'preview:', msg.substring(0, 100));
+        sendStatus({ event: 'dg_message', len: msg.length, preview: msg.substring(0, 60) });
         if (clientSocket.readyState === WebSocket.OPEN) {
           clientSocket.send(msg);
         }
@@ -67,30 +77,36 @@ Deno.serve(async (req) => {
 
       dgWs.on('error', (err: Error) => {
         console.error('[STT-PROXY] DG error:', err.message);
+        sendStatus({ event: 'dg_error', message: err.message });
         clientSocket.close(1011, 'Deepgram connection failed');
       });
 
       dgWs.on('close', (code: number, reason: Buffer) => {
         const reasonStr = reason ? reason.toString() : '';
         console.log('[STT-PROXY] DG CLOSED code:', code, 'reason:', reasonStr);
+        sendStatus({ event: 'dg_close', code, reason: reasonStr });
         if (clientSocket.readyState === WebSocket.OPEN) {
           clientSocket.close(code || 1000, reasonStr);
         }
       });
     }
 
+    let clientMsgCount = 0;
     clientSocket.onmessage = (e) => {
       ensureDg();
       clientMsgCount++;
+      const byteLen = typeof e.data === 'string' ? e.data.length : (e.data as ArrayBuffer).byteLength;
       if (dgWs && dgWs.readyState === WebSocket.OPEN) {
+        console.log('[STT-PROXY] Fwd msg #' + clientMsgCount + ' size=' + byteLen);
         dgWs.send(e.data);
       } else {
+        console.log('[STT-PROXY] Buffer msg #' + clientMsgCount + ' size=' + byteLen + ' dg_state=' + (dgWs?.readyState ?? -1));
         pending.push(e.data);
       }
     };
 
     clientSocket.onclose = () => {
-      console.log('[STT-PROXY] Client CLOSED, msgs:', clientMsgCount, 'pending:', pending.length);
+      console.log('[STT-PROXY] Client CLOSED, msgs:', clientMsgCount, 'pending:', pending.length, 'dg_state:', dgWs?.readyState ?? -1);
       if (dgWs) dgWs.close();
     };
 

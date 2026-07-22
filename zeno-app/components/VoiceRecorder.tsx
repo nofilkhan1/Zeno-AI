@@ -39,16 +39,22 @@ export default function VoiceRecorder({ onTranscript, onCancel }: Props) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  const mountId = useRef(Math.random().toString(36).slice(2, 8)).current;
+
+  useEffect(() => {
+    console.log('[STT] MOUNT id=' + mountId);
+    startFlow();
+    return () => {
+      console.log('[STT] UNMOUNT id=' + mountId);
+      cleanup();
+    };
+  }, []);
+
   const { stream } = useAudioStream({
     sampleRate: 16000,
     channels: 1,
     encoding: 'int16',
   });
-
-  useEffect(() => {
-    startFlow();
-    return () => cleanup();
-  }, []);
 
   useEffect(() => {
     if (stage !== 'recording') return;
@@ -145,6 +151,13 @@ export default function VoiceRecorder({ onTranscript, onCancel }: Props) {
 
     ws.onmessage = (e) => {
       try {
+        // Log EVERY received message with type and size
+        const dataType = typeof e.data;
+        const dataSize = e.data instanceof ArrayBuffer ? e.data.byteLength :
+          typeof e.data === 'string' ? e.data.length :
+          typeof e.data === 'object' && e.data?.byteLength ? e.data.byteLength : -1;
+        console.log('[STT] RAW MSG dataType=' + dataType + ' size=' + dataSize + ' preview=' + String(e.data).substring(0, 80));
+
         let raw: string;
         if (typeof e.data === 'string') {
           raw = e.data;
@@ -152,11 +165,20 @@ export default function VoiceRecorder({ onTranscript, onCancel }: Props) {
           raw = new TextDecoder().decode(e.data);
         } else if (e.data && typeof e.data === 'object' && 'data' in (e.data as any)) {
           raw = String((e.data as any).data);
+        } else if (typeof Buffer !== 'undefined' && e.data instanceof Buffer) {
+          raw = e.data.toString('utf-8');
         } else {
-          raw = '';
+          console.log('[STT] Unhandled message data type, cannot parse');
+          return;
         }
         if (!raw) return;
         const msg = JSON.parse(raw);
+
+        // Proxy diagnostic messages
+        if (msg.type === '_proxy_status') {
+          console.log('[STT] PROXY STATUS:', JSON.stringify(msg));
+          return;
+        }
 
         console.log('[STT] WS message type:', msg.type, 'is_final:', msg.is_final, 'text:', msg.channel?.alternatives?.[0]?.transcript?.substring(0, 60));
         if (msg.type === 'Results') {
