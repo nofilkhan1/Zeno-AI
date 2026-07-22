@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { createAudioPlayer } from 'expo-audio';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
