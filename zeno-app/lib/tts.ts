@@ -51,7 +51,6 @@ function startFinishCheck() {
       if (status.didJustFinish) {
         console.log('[TTS-DEBUG] 5. Audio playback finished (didJustFinish=true)');
         stopFinishCheck();
-        cleanupPlayer();
         setState('idle');
       }
     });

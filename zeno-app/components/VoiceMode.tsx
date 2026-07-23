@@ -105,7 +105,6 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       console.log('[VOICE] safeStopStream(' + reason + '): skipped (streamReleased=' + streamReleasedRef.current + ')');
       return;
     }
-    streamPausedForSpeechRef.current = false;
     try {
       stream.stop();
       console.log('[VOICE] safeStopStream(' + reason + '): OK');
@@ -207,7 +206,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     setState('listening');
     setConnectionStatus('connecting');
 
-    resumeStreamForListening();
+    await resumeStreamForListening();
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
