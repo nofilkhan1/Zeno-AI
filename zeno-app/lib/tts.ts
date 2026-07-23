@@ -11,7 +11,7 @@ let player: ReturnType<typeof createAudioPlayer> | null = null;
 let listeners: Set<TTSListener> = new Set();
 let _state: TTSState = 'idle';
 let _errorMsg = '';
-let finishCheckTimer: ReturnType<typeof setInterval> | null = null;
+let playbackSub: { remove: () => void } | null = null;
 
 function notify() {
   listeners.forEach((l) => l(_state, _errorMsg));
@@ -33,34 +33,47 @@ export function getTTSState() {
 }
 
 function stopFinishCheck() {
-  if (finishCheckTimer) {
-    clearInterval(finishCheckTimer);
-    finishCheckTimer = null;
+  if (playbackSub) {
+    playbackSub.remove();
+    playbackSub = null;
   }
 }
 
 function startFinishCheck() {
   stopFinishCheck();
-  finishCheckTimer = setInterval(() => {
-    if (!player) {
-      stopFinishCheck();
-      return;
-    }
-    try {
-      if (player.currentStatus.didJustFinish) {
+  if (!player) {
+    console.warn('[TTS] startFinishCheck: no player');
+    return;
+  }
+  try {
+    playbackSub = player.addListener('playbackStatusUpdate', (status: any) => {
+      console.log('[TTS-DEBUG] 5. Playback status event: didJustFinish=' + status.didJustFinish + ' isPlaying=' + status.isPlaying + ' currentTime=' + (status as any).currentTime + ' duration=' + (status as any).duration);
+      if (status.didJustFinish) {
+        console.log('[TTS-DEBUG] 5. Audio playback finished (didJustFinish=true)');
         stopFinishCheck();
         cleanupPlayer();
         setState('idle');
       }
-    } catch {
-      stopFinishCheck();
-    }
-  }, 300);
+    });
+    console.log('[TTS-DEBUG] 5. Subscribed to playbackStatusUpdate event');
+  } catch (e) {
+    console.error('[TTS-DEBUG] 5. Failed to subscribe to playbackStatusUpdate:', e);
+  }
 }
 
 function ensurePlayer() {
   if (!player) {
+    console.log('[TTS] ensurePlayer: creating new player');
     player = createAudioPlayer(null, { downloadFirst: false });
+    // Step 8: explicitly set volume to max (default might be 0 on some platforms)
+    try {
+      (player as any).volume = 1.0;
+      console.log('[TTS-DEBUG] 8. Player volume set to 1.0');
+    } catch (e) {
+      console.error('[TTS-DEBUG] 8. Failed to set volume:', e);
+    }
+  } else {
+    console.log('[TTS] ensurePlayer: reusing existing player');
   }
   return player;
 }
@@ -104,43 +117,82 @@ export async function speak(text: string): Promise<void> {
 
     console.log('[TTS] Fetching audio for text:', text.slice(0, 80));
 
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/tts`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ text }),
-    });
+    console.log('[TTS-DEBUG] 2. Fetching TTS API...');
+    let response: Response;
+    try {
+      response = await fetch(`${SUPABASE_URL}/functions/v1/tts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+      });
+    } catch (e) {
+      console.error('[TTS-DEBUG] ERROR at step 2 (API fetch):', e);
+      throw e;
+    }
 
     console.log('[TTS] Response status:', response.status);
 
     if (!response.ok) {
       const errBody = await response.json().catch(() => ({}));
-      console.error('[TTS] Error response:', errBody);
+      console.error('[TTS-DEBUG] ERROR at step 2 (API error response):', errBody);
       throw new Error((errBody as any).error || `TTS error ${response.status}`);
     }
 
-    const audioBuffer = await response.arrayBuffer();
-    console.log('[TTS] Received audio bytes:', audioBuffer.byteLength);
+    let audioBuffer: ArrayBuffer;
+    try {
+      audioBuffer = await response.arrayBuffer();
+    } catch (e) {
+      console.error('[TTS-DEBUG] ERROR at step 2 (arrayBuffer()):', e);
+      throw e;
+    }
+    console.log('[TTS-DEBUG] 2. API response status:', response.status, 'audio size:', audioBuffer.byteLength);
 
     if (audioBuffer.byteLength === 0) {
       throw new Error('Received empty audio response');
     }
 
-    const base64 = arrayBufferToBase64(audioBuffer);
-    const fileUri = `${FileSystem.cacheDirectory}tts-${Date.now()}.wav`;
+    let fileUri: string;
+    try {
+      const base64 = arrayBufferToBase64(audioBuffer);
+      fileUri = `${FileSystem.cacheDirectory}tts-${Date.now()}.wav`;
 
-    await FileSystem.writeAsStringAsync(fileUri, base64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+      await FileSystem.writeAsStringAsync(fileUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      console.log('[TTS-DEBUG] 3. Audio saved to:', fileUri);
+    } catch (e) {
+      console.error('[TTS-DEBUG] ERROR at step 3 (save audio to file):', e);
+      throw e;
+    }
 
-    console.log('[TTS] Audio saved to:', fileUri);
-
+    console.log('[TTS-DEBUG] 3. Loading audio into player');
     const p = ensurePlayer();
-    p.replace({ uri: fileUri });
+    if (!p) {
+      console.error('[TTS-DEBUG] ERROR at step 3: ensurePlayer returned null');
+      throw new Error('Player is null');
+    }
+    console.log('[TTS] Calling player.replace() with uri:', fileUri);
+    try {
+      p.replace({ uri: fileUri });
+      console.log('[TTS-DEBUG] 3. player.replace() succeeded');
+    } catch (e) {
+      console.error('[TTS-DEBUG] ERROR at step 3 (player.replace()):', e);
+      throw e;
+    }
     setState('playing');
-    p.play();
+    console.log('[TTS-DEBUG] 4. Calling player.play()');
+    try {
+      const playResult = p.play();
+      console.log('[TTS-DEBUG] 4. play() called, result:', playResult);
+    } catch (e) {
+      console.error('[TTS-DEBUG] ERROR at step 4 (player.play()):', e);
+      throw e;
+    }
+    // Step 5: playback completion detected via playbackStatusUpdate event
+    console.log('[TTS-DEBUG] 5. Subscribing to playbackStatusUpdate event');
     startFinishCheck();
   } catch (err) {
     console.error('[TTS] Error:', err);

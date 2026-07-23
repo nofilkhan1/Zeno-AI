@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
       return;
     }
     console.log('[STT-PROXY] Creating DG WS');
-    dgWs = new WebSocket('wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&interim_results=true&endpointing=300', ['token', deepgramApiKey]);
+    dgWs = new WebSocket('wss://api.deepgram.com/v1/listen?model=nova-3&encoding=linear16&sample_rate=16000&channels=1&language=en&interim_results=true&endpointing=300&smart_format=true&punctuate=true', ['token', deepgramApiKey]);
 
     dgWs.onopen = () => {
       const n = pending.length;

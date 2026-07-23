@@ -41,24 +41,31 @@ function splitIntoSentences(text: string): string[] {
 }
 
 function speakChunk(chunk: string): Promise<void> {
+  console.log('[VOICE] speakChunk start, chunk length:', chunk.length, 'text:', chunk.slice(0, 40));
   return new Promise((resolve) => {
     Promise.resolve(speak(chunk)).then(() => {
+      console.log('[VOICE] speakChunk: speak() resolved, subscribing to TTS');
       let resolved = false;
-      const unsub = subscribeToTTS((status) => {
+      const unsub = subscribeToTTS((status, err) => {
+        console.log('[VOICE] speakChunk TTS event: state=', status, 'error=', err);
         if (resolved) return;
         if (status === 'idle' || status === 'error') {
           resolved = true;
           unsub();
+          console.log('[VOICE] speakChunk: resolving via subscription, state:', status);
           resolve();
         }
       });
       const cur = getTTSState().state;
+      console.log('[VOICE] speakChunk: current TTS state after subscribe:', cur);
       if (cur === 'idle' || cur === 'error') {
         resolved = true;
         unsub();
+        console.log('[VOICE] speakChunk: resolving immediately, state:', cur);
         resolve();
       }
-    }, () => {
+    }, (err) => {
+      console.error('[VOICE] speakChunk: speak() rejected:', err);
       resolve();
     });
   });
@@ -77,7 +84,8 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const wsRef = useRef<WebSocket | null>(null);
   const listenerRef = useRef<{ remove: () => void } | null>(null);
   const cancelledRef = useRef(false);
-  const streamStoppedRef = useRef(false);
+  const streamPausedForSpeechRef = useRef(false);
+  const streamReleasedRef = useRef(false);
   const finalTranscriptRef = useRef('');
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vadCountRef = useRef(0);
@@ -90,6 +98,47 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const spokeAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0.3)).current;
+
+  // ── Centralized stream lifecycle management (single point of control) ──
+  const safeStopStream = useCallback((reason: string) => {
+    if (!stream || streamReleasedRef.current) {
+      console.log('[VOICE] safeStopStream(' + reason + '): skipped (streamReleased=' + streamReleasedRef.current + ')');
+      return;
+    }
+    streamPausedForSpeechRef.current = false;
+    try {
+      stream.stop();
+      console.log('[VOICE] safeStopStream(' + reason + '): OK');
+    } catch (e) {
+      console.error('[VOICE] safeStopStream(' + reason + ') error:', e);
+    }
+  }, [stream]);
+
+  const safeStartStream = useCallback(async (reason: string) => {
+    if (!stream || streamReleasedRef.current) {
+      console.log('[VOICE] safeStartStream(' + reason + '): skipped (streamReleased=' + streamReleasedRef.current + ')');
+      return;
+    }
+    try {
+      await stream.start();
+      console.log('[VOICE] safeStartStream(' + reason + '): OK');
+    } catch (e) {
+      console.error('[VOICE] safeStartStream(' + reason + ') error:', e);
+    }
+  }, [stream]);
+
+  // ── Pause mic during SPEAKING (releases Android audio routing for TTS playback) ──
+  const pauseStreamForSpeech = useCallback(async () => {
+    if (streamPausedForSpeechRef.current) return;
+    streamPausedForSpeechRef.current = true;
+    safeStopStream('pauseForSpeech');
+  }, [safeStopStream]);
+
+  const resumeStreamForListening = useCallback(async () => {
+    if (!streamPausedForSpeechRef.current) return;
+    streamPausedForSpeechRef.current = false;
+    await safeStartStream('resumeForListening');
+  }, [safeStartStream]);
 
   // ── Audio stream (always active in voice mode) ──────────────
   const { stream } = useAudioStream({ sampleRate: 16000, channels: 1, encoding: 'int16' });
@@ -104,13 +153,16 @@ export default function VoiceMode({ chatId, onClose }: Props) {
 
   // ── Init audio session for simultaneous record+playback ────
   useEffect(() => {
+    console.log('[TTS-DEBUG] 7. Initial audio mode: playsInSilent=true, shouldPlayInBackground=true, shouldRouteThroughEarpiece=false, interruptionMode=mixWithOthers, allowsRecording=true');
     setAudioModeAsync({
       playsInSilentMode: true,
       shouldPlayInBackground: true,
       shouldRouteThroughEarpiece: false,
       interruptionMode: 'mixWithOthers',
       allowsRecording: true,
-    }).catch((e: unknown) => console.warn('[VOICE] Audio mode init:', e));
+    }).then(() => {
+      console.log('[TTS-DEBUG] 7. Initial audio mode set successfully');
+    }).catch((e: unknown) => console.warn('[VOICE] Audio mode init error:', e));
   }, []);
 
   // ── Setup audio listener ───────────────────────────────────
@@ -138,13 +190,9 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       }
     };
     listenerRef.current = stream.addListener('audioStreamBuffer', handler);
-    stream.start().catch((e: unknown) => console.error('[VOICE] stream.start error:', e));
+    safeStartStream('effectSetup');
     return () => {
       listenerRef.current?.remove();
-      if (!streamStoppedRef.current) {
-        streamStoppedRef.current = true;
-        try { stream.stop(); } catch (e) { console.error('[VOICE] stream.stop error:', e); }
-      }
     };
   }, [stream]);
 
@@ -158,6 +206,8 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     finalTranscriptRef.current = '';
     setState('listening');
     setConnectionStatus('connecting');
+
+    resumeStreamForListening();
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
@@ -212,11 +262,16 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       } catch {}
     };
 
-    ws.onerror = () => {
-      if (!cancelledRef.current) console.warn('[VOICE] WS error');
+    ws.onerror = (e) => {
+      if (!cancelledRef.current) {
+        const msg = (e as any).message || JSON.stringify(e) || 'unknown';
+        console.warn('[VOICE] WS error:', msg);
+      }
     };
 
-    ws.onclose = () => {};
+    ws.onclose = (e) => {
+      console.log('[VOICE] WS closed: code=' + e.code + ' reason=' + e.reason + ' wasClean=' + e.wasClean);
+    };
   }, []);
 
   // ── Explicit confirm (✓): submit utterance ─────────────────
@@ -244,6 +299,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     if (!text) { startListening(); return; }
 
     setState('processing');
+    stateRef.current = 'processing';
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     wsRef.current?.close();
     wsRef.current = null;
@@ -270,27 +326,48 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       const replyText = data.content || '';
       if (!replyText) { startListening(); return; }
 
+      console.log('[TTS-DEBUG] 1. Starting TTS for text:', replyText.slice(0, 50));
+      console.log('[TTS-DEBUG] 1. Full response length:', replyText.length, 'chars, chunks:', splitIntoSentences(replyText).length);
+
       setState('speaking');
-      setTranscript(replyText);
+      stateRef.current = 'speaking';
+      setTranscript('');
       setInterimText('');
 
       if (cancelledRef.current) return;
 
-      // Ensure audio session is configured for playback
+      // Step 7: Ensure audio session is configured for simultaneous record+playback
+      console.log('[TTS-DEBUG] 7. Setting audio mode: playsInSilent=true, shouldPlayInBackground=true, shouldRouteThroughEarpiece=false, interruptionMode=mixWithOthers, allowsRecording=true');
       setAudioModeAsync({
         playsInSilentMode: true,
         shouldPlayInBackground: true,
         shouldRouteThroughEarpiece: false,
         interruptionMode: 'mixWithOthers',
         allowsRecording: true,
-      }).catch(() => {});
+      }).then(() => {
+        console.log('[TTS-DEBUG] 7. Audio mode set successfully');
+      }).catch((e: unknown) => {
+        console.error('[TTS-DEBUG] 7. Audio mode set failed:', e);
+      });
+
+      // Stop mic stream to release Android audio routing during TTS playback
+      console.log('[VOICE] Pausing mic stream for TTS playback');
+      await pauseStreamForSpeech();
 
       const chunks = splitIntoSentences(replyText);
-      for (const chunk of chunks) {
-        if (cancelledRef.current || stateRef.current !== 'speaking') break;
-        console.log('[VOICE] Playing TTS chunk:', chunk.slice(0, 60));
+      console.log('[TTS-DEBUG] Chunks total:', chunks.length);
+      let spokenText = '';
+      for (let ci = 0; ci < chunks.length; ci++) {
+        const chunk = chunks[ci];
+        console.log('[TTS-DEBUG] Chunk ' + (ci + 1) + '/' + chunks.length + ' queued: "' + chunk.slice(0, 60) + '" (len=' + chunk.length + ')');
+        if (cancelledRef.current || stateRef.current !== 'speaking') {
+          console.log('[TTS-DEBUG] Chunk ' + (ci + 1) + ' SKIPPED: cancelled=' + cancelledRef.current + ' stateRef=' + stateRef.current);
+          break;
+        }
         await speakChunk(chunk);
-        console.log('[VOICE] TTS chunk done');
+        spokenText += chunk + ' ';
+        setTranscript(spokenText.trim());
+        console.log('[TTS-DEBUG] Chunk ' + (ci + 1) + '/' + chunks.length + ' finished playing');
       }
 
       if (!cancelledRef.current && stateRef.current === 'speaking') {
@@ -304,7 +381,8 @@ export default function VoiceMode({ chatId, onClose }: Props) {
 
   // ── Barge-in (hard reset) ───────────────────────────────────
   const handleBargeIn = useCallback(() => {
-    console.log('[VOICE] Barge-in detected');
+    const wasSpeaking = stateRef.current === 'speaking';
+    console.log('[TTS-DEBUG] Barge-in triggered during speaking=' + wasSpeaking + ' state=' + stateRef.current);
     cancelledRef.current = true;
     stateRef.current = 'listening';
     stopTTS();
@@ -339,6 +417,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     return () => {
       clearTimeout(timer);
       cancelledRef.current = true;
+      streamReleasedRef.current = true;
       stopTTS();
       wsRef.current?.close();
       wsRef.current = null;
@@ -415,11 +494,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     wsRef.current?.close();
     wsRef.current = null;
 
-    // Stop mic stream immediately
-    if (stream && !streamStoppedRef.current) {
-      streamStoppedRef.current = true;
-      try { stream.stop(); } catch (e) { console.error('[VOICE] stream.stop error:', e); }
-    }
+    safeStopStream('handleEndCall');
 
     Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => onClose());
   }
