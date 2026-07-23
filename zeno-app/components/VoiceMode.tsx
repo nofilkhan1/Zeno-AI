@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Easing, Dimensions } from 'react-native';
 import { Mic, MicOff, PhoneOff, X, Check } from 'lucide-react-native';
-import { Audio } from 'expo-av';
 import { supabase } from '../lib/supabase';
-import { useAudioStream, requestRecordingPermissionsAsync } from 'expo-audio';
+import { useAudioStream, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
 import type { AudioStreamBuffer } from 'expo-audio';
 import { useColors, typography } from '../lib/theme';
 import { speak, stopTTS, subscribeToTTS, getTTSState } from '../lib/tts';
@@ -85,7 +84,6 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const stateRef = useRef<VoiceState>('listening');
   const handleUtteranceEndRef = useRef<() => void>(() => {});
   const startListeningRef = useRef<() => void>(() => {});
-  const audioModeInitRef = useRef(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const thinkingAnim = useRef(new Animated.Value(0)).current;
@@ -106,13 +104,13 @@ export default function VoiceMode({ chatId, onClose }: Props) {
 
   // ── Init audio session for simultaneous record+playback ────
   useEffect(() => {
-    Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
-    }).then(() => { audioModeInitRef.current = true; }).catch((e) => console.warn('[VOICE] Audio mode init:', e));
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: true,
+      shouldRouteThroughEarpiece: false,
+      interruptionMode: 'mixWithOthers',
+      allowsRecording: true,
+    }).catch((e: unknown) => console.warn('[VOICE] Audio mode init:', e));
   }, []);
 
   // ── Setup audio listener ───────────────────────────────────
@@ -279,12 +277,12 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       if (cancelledRef.current) return;
 
       // Ensure audio session is configured for playback
-      Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+      setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
+        shouldRouteThroughEarpiece: false,
+        interruptionMode: 'mixWithOthers',
+        allowsRecording: true,
       }).catch(() => {});
 
       const chunks = splitIntoSentences(replyText);
