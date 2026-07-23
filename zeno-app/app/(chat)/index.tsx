@@ -39,6 +39,7 @@ export default function ChatListScreen() {
   const [searchArmed, setSearchArmed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [voiceModeActive, setVoiceModeActive] = useState(false);
+  const openingVoiceModeRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const sendingRef = useRef(false);
   const searchArmedRef = useRef(false);
@@ -173,10 +174,10 @@ export default function ChatListScreen() {
           <Settings size={24} color={colors.textMuted} />
         </Pressable>
       </View>
-      <ChatScreen messages={messages} onSend={handleSend} sending={sending} sendError={sendError} onDismissError={() => setSendError(null)} chatModel={activeChat?.model} searchArmed={searchArmed} onToggleSearch={handleToggleSearch} onStartVoiceMode={() => setVoiceModeActive(true)} />
+      <ChatScreen messages={messages} onSend={handleSend} sending={sending} sendError={sendError} onDismissError={() => setSendError(null)} chatModel={activeChat?.model} searchArmed={searchArmed} onToggleSearch={handleToggleSearch} onStartVoiceMode={() => { if (voiceModeActive || openingVoiceModeRef.current) return; openingVoiceModeRef.current = true; setVoiceModeActive(true); setTimeout(() => { openingVoiceModeRef.current = false; }, 3000); }} />
       <Sidebar visible={sidebarVisible} onClose={() => setSidebarVisible(false)} onNewChat={handleNewChat} chats={chats} chatsLoading={chatsLoading} activeChatId={activeChat?.id} onSelectChat={(chat) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActiveChat(chat); setSendError(null); setSidebarVisible(false); }} onRenameChat={(chatId, newTitle) => { setChats((prev) => prev.map((c) => c.id === chatId ? { ...c, title: newTitle } : c)); setActiveChat((prev) => prev?.id === chatId ? { ...prev, title: newTitle } : prev); }} />
       {voiceModeActive && activeChat && (
-        <VoiceMode chatId={activeChat.id} onClose={() => { setVoiceModeActive(false); loadMessages(activeChat.id); }} />
+        <VoiceMode chatId={activeChat.id} onClose={() => { openingVoiceModeRef.current = false; setVoiceModeActive(false); loadMessages(activeChat.id); }} />
       )}
       <SettingsOverlay visible={showSettings} onClose={() => setShowSettings(false)} />
     </View>

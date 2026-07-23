@@ -5,13 +5,15 @@ import { supabase } from '../lib/supabase';
 import { useAudioStream, requestRecordingPermissionsAsync } from 'expo-audio';
 import type { AudioStreamBuffer } from 'expo-audio';
 import { useColors, typography } from '../lib/theme';
-import { speak, stopTTS, subscribeToTTS } from '../lib/tts';
+import { speak, stopTTS, subscribeToTTS, getTTSState } from '../lib/tts';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_HOST = SUPABASE_URL.replace('https://', '');
 const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/chat`;
 const VAD_THRESHOLD = 1000;
 const VAD_CONSECUTIVE = 3;
+const VOICE_MODEL = 'nvidia/nemotron-mini-4b-instruct';
+const CHAT_TIMEOUT = 25000;
 
 type VoiceState = 'listening' | 'processing' | 'speaking';
 
@@ -23,6 +25,45 @@ type Props = {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ORB_SIZE = Math.min(SCREEN_WIDTH * 0.55, 200);
 
+function splitIntoSentences(text: string): string[] {
+  const parts = text.split(/(?<=[.!?])\s+/);
+  const chunks: string[] = [];
+  let buf = '';
+  for (const part of parts) {
+    if (!buf) { buf = part; continue; }
+    if (buf.length + part.length < 200) { buf += ' ' + part; continue; }
+    chunks.push(buf);
+    buf = part;
+  }
+  if (buf) chunks.push(buf);
+  if (chunks.length === 0 && text) chunks.push(text);
+  return chunks;
+}
+
+function speakChunk(chunk: string): Promise<void> {
+  return new Promise((resolve) => {
+    Promise.resolve(speak(chunk)).then(() => {
+      let resolved = false;
+      const unsub = subscribeToTTS((status) => {
+        if (resolved) return;
+        if (status === 'idle' || status === 'error') {
+          resolved = true;
+          unsub();
+          resolve();
+        }
+      });
+      const cur = getTTSState().state;
+      if (cur === 'idle' || cur === 'error') {
+        resolved = true;
+        unsub();
+        resolve();
+      }
+    }, () => {
+      resolve();
+    });
+  });
+}
+
 export default function VoiceMode({ chatId, onClose }: Props) {
   const colors = useColors();
   const t = typography(colors);
@@ -31,6 +72,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const [interimText, setInterimText] = useState('');
   const [muted, setMuted] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected'>('connecting');
 
   const wsRef = useRef<WebSocket | null>(null);
   const listenerRef = useRef<{ remove: () => void } | null>(null);
@@ -98,11 +140,13 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   // ── Start listening (open WebSocket) ───────────────────────
   const startListening = useCallback(async () => {
     if (cancelledRef.current) return;
-    if (wsRef.current) return; // guard: already listening
+    if (wsRef.current) return;
     setTranscript('');
     setInterimText('');
+    setErrorMsg('');
     finalTranscriptRef.current = '';
     setState('listening');
+    setConnectionStatus('connecting');
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
@@ -125,6 +169,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
 
     ws.onopen = () => {
       console.log('[VOICE] WS open');
+      if (!cancelledRef.current) setConnectionStatus('connected');
     };
 
     ws.onmessage = (e) => {
@@ -151,19 +196,18 @@ export default function VoiceMode({ chatId, onClose }: Props) {
           setInterimText(text);
         }
 
-        // Reset silence timer on any result (interim or final) — user is still talking
         resetSilenceTimer();
       } catch {}
     };
 
     ws.onerror = () => {
-      if (!cancelledRef.current) setErrorMsg('Connection lost');
+      if (!cancelledRef.current) console.warn('[VOICE] WS error');
     };
 
     ws.onclose = () => {};
   }, []);
 
-  // ── Utterance end → PROCESSING → chat API → SPEAKING ──────
+  // ── Utterance end → PROCESSING → chat API → SPEAKING (chunked TTS) ──
   const handleUtteranceEnd = useCallback(async () => {
     const text = finalTranscriptRef.current.trim();
     if (!text) { startListening(); return; }
@@ -177,11 +221,17 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     if (!session?.access_token) { startListening(); return; }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT);
+
       const response = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, message: text }),
+        body: JSON.stringify({ chatId, message: text, modelOverride: VOICE_MODEL }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
@@ -193,45 +243,59 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       setTranscript(replyText);
       setInterimText('');
 
-      speak(replyText).catch(() => {});
+      if (cancelledRef.current) return;
 
-      const unsub = subscribeToTTS((ts) => {
-        if (ts === 'idle' || ts === 'error') {
-          unsub();
-          if (!cancelledRef.current && stateRef.current === 'speaking') {
-            startListening();
-          }
-        }
-      });
+      const chunks = splitIntoSentences(replyText);
+      for (const chunk of chunks) {
+        if (cancelledRef.current || stateRef.current !== 'speaking') break;
+        await speakChunk(chunk);
+      }
+
+      if (!cancelledRef.current && stateRef.current === 'speaking') {
+        startListening();
+      }
     } catch (err) {
       console.error('[VOICE] Chat error:', err);
       if (!cancelledRef.current) startListening();
     }
   }, [chatId, startListening]);
 
-  // ── Barge-in ───────────────────────────────────────────────
+  // ── Barge-in (hard reset) ───────────────────────────────────
   const handleBargeIn = useCallback(() => {
     console.log('[VOICE] Barge-in detected');
+    cancelledRef.current = true;
+    stateRef.current = 'listening';
     stopTTS();
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     wsRef.current?.close();
     wsRef.current = null;
-  }, []);
+    vadCountRef.current = 0;
+    finalTranscriptRef.current = '';
+
+    setState('listening');
+    cancelledRef.current = false;
+    setConnectionStatus('connecting');
+
+    startListening();
+  }, [startListening]);
 
   // ── Sync refs for callback freshness ──────────────────────
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { handleUtteranceEndRef.current = handleUtteranceEnd; }, [handleUtteranceEnd]);
   useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
 
-  // ── Initial start ──────────────────────────────────────────
+  // ── Initial start (deferred for immediate UI) ──────────────
   useEffect(() => {
-    (async () => {
+    cancelledRef.current = false;
+
+    const timer = setTimeout(async () => {
       const perm = await requestRecordingPermissionsAsync();
       if (!perm.granted) { setErrorMsg('Microphone permission required'); return; }
-      startListening();
-    })();
+      if (!cancelledRef.current) startListening();
+    }, 0);
 
     return () => {
+      clearTimeout(timer);
       cancelledRef.current = true;
       stopTTS();
       wsRef.current?.close();
@@ -299,9 +363,9 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     // Save any captured transcript as a user message
     const pendingText = (finalTranscriptRef.current || transcript).trim();
     if (pendingText) {
-      supabase.from('messages').insert({
+      Promise.resolve(supabase.from('messages').insert({
         chat_id: chatId, role: 'user', content: pendingText, created_at: new Date().toISOString(),
-      }).then(() => {}).catch(() => {});
+      })).then(() => {}, () => {});
     }
 
     stopTTS();
@@ -309,8 +373,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     wsRef.current?.close();
     wsRef.current = null;
 
-    // Stop mic stream immediately (native AudioStream is still alive here).
-    // The effect cleanup also guards via streamStoppedRef as a fallback.
+    // Stop mic stream immediately
     if (stream && !streamStoppedRef.current) {
       streamStoppedRef.current = true;
       try { stream.stop(); } catch (e) { console.error('[VOICE] stream.stop error:', e); }
@@ -325,7 +388,8 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     : state === 'processing' ? (colors.textMuted)
     : colors.accent;
 
-  const stateLabel = state === 'listening' ? 'Listening…'
+  const stateLabel = connectionStatus === 'connecting' ? 'Connecting…'
+    : state === 'listening' ? 'Listening…'
     : state === 'processing' ? 'Thinking…'
     : 'Speaking…';
 
