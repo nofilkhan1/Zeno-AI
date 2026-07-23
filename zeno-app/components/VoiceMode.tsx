@@ -283,12 +283,28 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   }, [state]);
 
   function handleEndCall() {
-    if (cancelledRef.current) return; // guard: no double-tap
+    if (cancelledRef.current) return;
     cancelledRef.current = true;
+
+    // Save any captured transcript as a user message
+    const pendingText = (finalTranscriptRef.current || transcript).trim();
+    if (pendingText) {
+      supabase.from('messages').insert({
+        chat_id: chatId, role: 'user', content: pendingText, created_at: new Date().toISOString(),
+      }).then(() => {}).catch(() => {});
+    }
+
     stopTTS();
     wsRef.current?.close();
     wsRef.current = null;
-    // stream.stop() is handled by the effect cleanup on unmount + useReleasingSharedObject's auto-release
+
+    // Stop mic stream immediately (native AudioStream is still alive here).
+    // The effect cleanup also guards via streamStoppedRef as a fallback.
+    if (stream && !streamStoppedRef.current) {
+      streamStoppedRef.current = true;
+      try { stream.stop(); } catch (e) { console.error('[VOICE] stream.stop error:', e); }
+    }
+
     Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => onClose());
   }
 
