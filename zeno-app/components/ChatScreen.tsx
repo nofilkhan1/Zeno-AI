@@ -16,6 +16,7 @@ type Props = {
   chatModel?: string;
   searchArmed?: boolean;
   onToggleSearch?: () => void;
+  onStartVoiceMode?: () => void;
 };
 
 const ANIM_DURATION = 200;
@@ -61,7 +62,7 @@ function ErrorBar({ message, onDismiss }: { message: string; onDismiss: () => vo
   );
 }
 
-export default function ChatScreen({ messages = [], onSend, sending, sendError, onDismissError, chatModel, searchArmed, onToggleSearch }: Props) {
+export default function ChatScreen({ messages = [], onSend, sending, sendError, onDismissError, chatModel, searchArmed, onToggleSearch, onStartVoiceMode }: Props) {
   const colors = useColors();
   const scheme = useColorScheme();
   const t = typography(colors);
@@ -177,6 +178,7 @@ export default function ChatScreen({ messages = [], onSend, sending, sendError, 
           searchArmed={searchArmed}
           onToggleSearch={onToggleSearch}
           onStartRecording={() => setIsRecording(true)}
+          onStartVoiceMode={onStartVoiceMode}
           value={inputText}
           onChangeText={setInputText}
         />

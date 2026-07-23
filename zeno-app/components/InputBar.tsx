@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, TextInput, StyleSheet, Animated, Easing, Pressable, Platform, Modal, TouchableOpacity, Text } from 'react-native';
-import { Send, Plus, Globe, Mic } from 'lucide-react-native';
+import { Send, Plus, Globe, Mic, Phone } from 'lucide-react-native';
 import { useColors, radii, softShadow, typography } from '../lib/theme';
 
 type Props = {
@@ -9,6 +9,7 @@ type Props = {
   searchArmed?: boolean;
   onToggleSearch?: () => void;
   onStartRecording?: () => void;
+  onStartVoiceMode?: () => void;
   value?: string;
   onChangeText?: (text: string) => void;
 };
@@ -49,7 +50,7 @@ const td = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#eee' },
 });
 
-export default function InputBar({ onSend, disabled, searchArmed, onToggleSearch, onStartRecording, value, onChangeText }: Props) {
+export default function InputBar({ onSend, disabled, searchArmed, onToggleSearch, onStartRecording, onStartVoiceMode, value, onChangeText }: Props) {
   const colors = useColors();
   const t = typography(colors);
   const [text, setText] = useState('');
@@ -100,6 +101,11 @@ export default function InputBar({ onSend, disabled, searchArmed, onToggleSearch
   function handleSelectSpeech() {
     setMenuVisible(false);
     onStartRecording?.();
+  }
+
+  function handleSelectVoiceMode() {
+    setMenuVisible(false);
+    onStartVoiceMode?.();
   }
 
   return (
@@ -167,6 +173,16 @@ export default function InputBar({ onSend, disabled, searchArmed, onToggleSearch
                 <Mic size={20} color={colors.textMuted} />
               </View>
               <Text style={[t.bodyMedium, { color: colors.textPrimary }]}>Speech to Text</Text>
+            </Pressable>
+            <View style={[s.menuDivider, { backgroundColor: colors.composerBorder }]} />
+            <Pressable
+              style={({ pressed }) => [s.menuOption, pressed && { opacity: 0.7 }]}
+              onPress={handleSelectVoiceMode}
+            >
+              <View style={s.menuIcon}>
+                <Phone size={20} color={colors.textMuted} />
+              </View>
+              <Text style={[t.bodyMedium, { color: colors.textPrimary }]}>Voice Mode</Text>
             </Pressable>
           </View>
         </TouchableOpacity>
