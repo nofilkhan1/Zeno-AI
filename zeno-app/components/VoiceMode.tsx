@@ -37,6 +37,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const cancelledRef = useRef(false);
   const streamStoppedRef = useRef(false);
   const finalTranscriptRef = useRef('');
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vadCountRef = useRef(0);
   const stateRef = useRef<VoiceState>('listening');
   const handleUtteranceEndRef = useRef<() => void>(() => {});
@@ -106,6 +107,18 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
 
+    function resetSilenceTimer() {
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = setTimeout(() => {
+        silenceTimerRef.current = null;
+        const text = finalTranscriptRef.current.trim();
+        if (text) {
+          console.log('[VOICE] Silence timeout, ending turn, transcript:', text);
+          handleUtteranceEndRef.current();
+        }
+      }, 2000);
+    }
+
     const ws = new WebSocket(`wss://${SUPABASE_HOST}/functions/v1/speech-token?token=${session.access_token}`);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
@@ -134,18 +147,12 @@ export default function VoiceMode({ chatId, onClose }: Props) {
             : finalTranscriptRef.current;
           setTranscript(finalTranscriptRef.current);
           setInterimText('');
-
-          if (msg.speech_final) {
-            console.log('[VOICE] speech_final detected, transcript:', finalTranscriptRef.current);
-            if (finalTranscriptRef.current.trim()) {
-              handleUtteranceEndRef.current();
-            } else {
-              startListeningRef.current();
-            }
-          }
         } else {
           setInterimText(text);
         }
+
+        // Reset silence timer on any result (interim or final) — user is still talking
+        resetSilenceTimer();
       } catch {}
     };
 
@@ -162,6 +169,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     if (!text) { startListening(); return; }
 
     setState('processing');
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     wsRef.current?.close();
     wsRef.current = null;
 
@@ -205,6 +213,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const handleBargeIn = useCallback(() => {
     console.log('[VOICE] Barge-in detected');
     stopTTS();
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     wsRef.current?.close();
     wsRef.current = null;
   }, []);
@@ -227,6 +236,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       stopTTS();
       wsRef.current?.close();
       wsRef.current = null;
+      if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     };
   }, []);
 
@@ -295,6 +305,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     }
 
     stopTTS();
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     wsRef.current?.close();
     wsRef.current = null;
 
