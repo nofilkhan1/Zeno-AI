@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Easing, Dimensions } from 'react-native';
-import { Mic, MicOff, PhoneOff } from 'lucide-react-native';
+import { Mic, MicOff, PhoneOff, X, Check } from 'lucide-react-native';
+import { Audio } from 'expo-av';
 import { supabase } from '../lib/supabase';
 import { useAudioStream, requestRecordingPermissionsAsync } from 'expo-audio';
 import type { AudioStreamBuffer } from 'expo-audio';
@@ -84,6 +85,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const stateRef = useRef<VoiceState>('listening');
   const handleUtteranceEndRef = useRef<() => void>(() => {});
   const startListeningRef = useRef<() => void>(() => {});
+  const audioModeInitRef = useRef(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const thinkingAnim = useRef(new Animated.Value(0)).current;
@@ -100,6 +102,17 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   useEffect(() => {
     fadeAnim.setValue(0);
     Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+  }, []);
+
+  // ── Init audio session for simultaneous record+playback ────
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    }).then(() => { audioModeInitRef.current = true; }).catch((e) => console.warn('[VOICE] Audio mode init:', e));
   }, []);
 
   // ── Setup audio listener ───────────────────────────────────
@@ -153,14 +166,15 @@ export default function VoiceMode({ chatId, onClose }: Props) {
 
     function resetSilenceTimer() {
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      // Use longer timeout now that we have ✓/✗ buttons — silence is backup only
       silenceTimerRef.current = setTimeout(() => {
         silenceTimerRef.current = null;
         const text = finalTranscriptRef.current.trim();
         if (text) {
-          console.log('[VOICE] Silence timeout, ending turn, transcript:', text);
+          console.log('[VOICE] Backup silence timeout, submitting:', text);
           handleUtteranceEndRef.current();
         }
-      }, 2000);
+      }, 6000);
     }
 
     const ws = new WebSocket(`wss://${SUPABASE_HOST}/functions/v1/speech-token?token=${session.access_token}`);
@@ -207,6 +221,25 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     ws.onclose = () => {};
   }, []);
 
+  // ── Explicit confirm (✓): submit utterance ─────────────────
+  const handleConfirm = useCallback(() => {
+    const text = finalTranscriptRef.current.trim();
+    if (!text) return;
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    handleUtteranceEndRef.current();
+  }, []);
+
+  // ── Explicit cancel (✗): discard utterance, stay listening ─
+  const handleCancel = useCallback(() => {
+    console.log('[VOICE] User cancelled utterance');
+    finalTranscriptRef.current = '';
+    setTranscript('');
+    setInterimText('');
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    // Keep listening fresh — reset VAD count too
+    vadCountRef.current = 0;
+  }, []);
+
   // ── Utterance end → PROCESSING → chat API → SPEAKING (chunked TTS) ──
   const handleUtteranceEnd = useCallback(async () => {
     const text = finalTranscriptRef.current.trim();
@@ -245,10 +278,21 @@ export default function VoiceMode({ chatId, onClose }: Props) {
 
       if (cancelledRef.current) return;
 
+      // Ensure audio session is configured for playback
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      }).catch(() => {});
+
       const chunks = splitIntoSentences(replyText);
       for (const chunk of chunks) {
         if (cancelledRef.current || stateRef.current !== 'speaking') break;
+        console.log('[VOICE] Playing TTS chunk:', chunk.slice(0, 60));
         await speakChunk(chunk);
+        console.log('[VOICE] TTS chunk done');
       }
 
       if (!cancelledRef.current && stateRef.current === 'speaking') {
@@ -393,6 +437,8 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     : state === 'processing' ? 'Thinking…'
     : 'Speaking…';
 
+  const listeningButtonsVisible = state === 'listening' && connectionStatus === 'connected';
+
   return (
     <Animated.View style={[s.root, { backgroundColor: colors.bg, opacity: fadeAnim }]}>
       {/* Top bar */}
@@ -403,7 +449,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
         >
           {muted ? <MicOff size={20} color={colors.textMuted} /> : <Mic size={20} color={colors.textPrimary} />}
         </Pressable>
-        <Text style={[t.captionMedium, { color: colors.textMuted }]}>Voice Mode</Text>
+        <Text style={[t.captionMedium, { color: colors.textMuted }]}>Voice to Voice</Text>
         <View style={{ width: 44 }} />
       </View>
 
@@ -464,7 +510,25 @@ export default function VoiceMode({ chatId, onClose }: Props) {
         )}
       </View>
 
-      {/* End Call */}
+      {/* Confirm/Cancel buttons (only during active listening) */}
+      {listeningButtonsVisible ? (
+        <View style={s.confirmArea}>
+          <Pressable
+            style={({ pressed }) => [s.cancelBtn, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
+            onPress={handleCancel}
+          >
+            <X size={24} color="#fff" />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [s.confirmBtn, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
+            onPress={handleConfirm}
+          >
+            <Check size={24} color="#fff" />
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* Bottom button: End Call (always visible) */}
       <View style={s.bottomArea}>
         <Pressable
           style={({ pressed }) => [s.endCallBtn, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
@@ -533,6 +597,29 @@ const s = StyleSheet.create({
     minHeight: 80,
     justifyContent: 'center',
     marginBottom: 16,
+  },
+  confirmArea: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 32,
+    marginBottom: 24,
+  },
+  cancelBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bottomArea: {
     alignItems: 'center',

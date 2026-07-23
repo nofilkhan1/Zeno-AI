@@ -182,7 +182,7 @@ export default function InputBar({ onSend, disabled, searchArmed, onToggleSearch
               <View style={s.menuIcon}>
                 <Phone size={20} color={colors.textMuted} />
               </View>
-              <Text style={[t.bodyMedium, { color: colors.textPrimary }]}>Voice Mode</Text>
+              <Text style={[t.bodyMedium, { color: colors.textPrimary }]}>Voice to Voice</Text>
             </Pressable>
           </View>
         </TouchableOpacity>
