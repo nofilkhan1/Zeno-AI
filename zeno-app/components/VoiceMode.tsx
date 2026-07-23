@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, Easing, AppState, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, Easing, Dimensions } from 'react-native';
 import { Mic, MicOff, PhoneOff } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { useAudioStream, requestRecordingPermissionsAsync } from 'expo-audio';
@@ -33,9 +33,9 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const [errorMsg, setErrorMsg] = useState('');
 
   const wsRef = useRef<WebSocket | null>(null);
-  const streamRef = useRef<{ start: () => void; stop: () => void } | null>(null);
   const listenerRef = useRef<{ remove: () => void } | null>(null);
   const cancelledRef = useRef(false);
+  const streamStoppedRef = useRef(false);
   const finalTranscriptRef = useRef('');
   const vadCountRef = useRef(0);
   const stateRef = useRef<VoiceState>('listening');
@@ -62,7 +62,6 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   // ── Setup audio listener ───────────────────────────────────
   useEffect(() => {
     if (!stream) return;
-    streamRef.current = stream as any;
     const handler = (buffer: AudioStreamBuffer) => {
       if (cancelledRef.current || mutedRef.current) return;
       const st = stateRef.current;
@@ -85,10 +84,13 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       }
     };
     listenerRef.current = stream.addListener('audioStreamBuffer', handler);
-    stream.start();
+    stream.start().catch((e: unknown) => console.error('[VOICE] stream.start error:', e));
     return () => {
       listenerRef.current?.remove();
-      stream.stop();
+      if (!streamStoppedRef.current) {
+        streamStoppedRef.current = true;
+        try { stream.stop(); } catch (e) { console.error('[VOICE] stream.stop error:', e); }
+      }
     };
   }, [stream]);
 
@@ -281,11 +283,12 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   }, [state]);
 
   function handleEndCall() {
+    if (cancelledRef.current) return; // guard: no double-tap
     cancelledRef.current = true;
     stopTTS();
     wsRef.current?.close();
     wsRef.current = null;
-    if (stream) { try { stream.stop(); } catch {} }
+    // stream.stop() is handled by the effect cleanup on unmount + useReleasingSharedObject's auto-release
     Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => onClose());
   }
 
