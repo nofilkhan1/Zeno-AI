@@ -40,33 +40,33 @@ Deno.serve(async (req) => {
           status: 400, headers: { 'Content-Type': 'application/json' },
         });
       }
-      const [ayahRes, wordsRes] = await Promise.all([
+      const [ayahRes, transRes] = await Promise.all([
         fetch(`${UMMAH_BASE}/api/quran/surah/${surah}/ayah/${ayah}`, { headers }),
-        fetch(`${UMMAH_BASE}/api/quran/words/${surah}/${ayah}`, { headers }),
+        fetch(`https://cdn.jsdelivr.net/gh/fawazahmed0/quran-api@1/editions/ara-quran-la1/${surah}/${ayah}.json`),
       ]);
-      console.log('[Quran] Fetching ayah + words:', surah, ayah);
+      console.log('[Quran] Fetching ayah:', surah, ayah);
 
       const ayahData = await ayahRes.json();
       if (!ayahData.success) {
         throw new Error(ayahData.error || 'Failed to fetch ayah');
       }
 
-      const wordsData = await wordsRes.json();
-      let spacedTransliteration = '';
-      if (wordsData.success && Array.isArray(wordsData.data?.words)) {
-        spacedTransliteration = wordsData.data.words
-          .map((w: { transliteration?: { text?: string } }) => w.transliteration?.text || '')
-          .join(' ');
+      const v = ayahData.data.verse;
+      let transliterationText = v.transliteration;
+      if (transRes.ok) {
+        const transData = await transRes.json();
+        if (transData.text) {
+          transliterationText = transData.text;
+        }
       }
 
-      const v = ayahData.data.verse;
       const translationText = translation
         ? v.translations[translation]
         : v.translations.sahih_international;
       return new Response(JSON.stringify({
         surah: ayahData.data.surah,
         arabic: v.arabic,
-        transliteration: spacedTransliteration || v.transliteration,
+        transliteration: transliterationText,
         translation: translationText,
         translationKey: translation || 'sahih_international',
         verseKey: v.verse_key,
