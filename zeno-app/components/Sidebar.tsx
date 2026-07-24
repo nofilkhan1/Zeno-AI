@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, Animated, Easing, StyleSheet, ActivityIndicator, TextInput, Pressable, useColorScheme } from 'react-native';
 import ActionDialog from './ActionDialog';
-import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal } from 'lucide-react-native';
+import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal, BookOpen } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Chat } from '../lib/types';
@@ -177,6 +177,14 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
             )}
 
             <Pressable
+              style={({ pressed }) => [s.quranButton, { borderTopColor: colors.composerBorder }, pressed && { opacity: 0.7 }]}
+              onPress={() => router.push('/quran')}
+            >
+              <BookOpen size={18} color={colors.accent} />
+              <Text style={[t.body, { color: colors.accent }]}>Quran GPT</Text>
+            </Pressable>
+
+            <Pressable
               style={({ pressed }) => [s.signOutButton, { borderTopColor: colors.composerBorder }, pressed && { opacity: 0.7 }]}
               onPress={signOut}
             >
@@ -224,5 +232,6 @@ const s = StyleSheet.create({
   chatItemContent: { flex: 1 },
   renameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   renameInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', fontSize: 16, paddingVertical: 8, paddingHorizontal: 12, borderRadius: radii.sm, borderWidth: 1, fontFamily: 'Inter_400Regular' },
-  signOutButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 16, paddingHorizontal: 16, borderTopWidth: 1, marginTop: 8 },
+  quranButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 16, paddingHorizontal: 16, borderTopWidth: 1, marginTop: 8 },
+  signOutButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 16, paddingHorizontal: 16, borderTopWidth: 1 },
 });
