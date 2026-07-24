@@ -39,7 +39,7 @@ type SearchResult = {
 };
 
 type HadithResult = {
-  id: number;
+  id: string;
   collection: string;
   collectionName: string;
   hadithNumber: number;
@@ -142,6 +142,10 @@ export default function QuranScreen() {
           setAnswerConfidence((data.confidence as ConfidenceLevel) || 'red');
           setAnswerQuranVerses(data.quranVerses || []);
           setAnswerHadiths(data.hadiths || []);
+          if (data.error && !data.answer) {
+            setAnswer(null);
+            setError(data.error);
+          }
         }
       } else {
         const ayahMatch = trimmed.match(/^(\d+)\s*[:.]\s*(\d+)$/);
@@ -291,22 +295,23 @@ export default function QuranScreen() {
           </View>
         )}
 
-        {answer && confidenceMeta && (
+        {/* ── Q&A: evidence cards (shown even if LLM failed) ── */}
+        {answerQuranVerses.length > 0 || answerHadiths.length > 0 ? (
           <>
-            {/* Confidence badge */}
-            <View style={s.confidenceRow}>
-              <View style={[s.confidenceDot, { backgroundColor: scheme === 'dark' ? confidenceMeta.darkColor : confidenceMeta.color }]} />
-              <Text style={[t.captionMedium, { color: scheme === 'dark' ? confidenceMeta.darkColor : confidenceMeta.color }]}>
-                {confidenceMeta.label}
-              </Text>
-            </View>
+            {answer && confidenceMeta && (
+              <>
+                <View style={s.confidenceRow}>
+                  <View style={[s.confidenceDot, { backgroundColor: scheme === 'dark' ? confidenceMeta.darkColor : confidenceMeta.color }]} />
+                  <Text style={[t.captionMedium, { color: scheme === 'dark' ? confidenceMeta.darkColor : confidenceMeta.color }]}>
+                    {confidenceMeta.label}
+                  </Text>
+                </View>
+                <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
+                  <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22 }]}>{answer}</Text>
+                </View>
+              </>
+            )}
 
-            {/* Answer text */}
-            <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
-              <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22 }]}>{answer}</Text>
-            </View>
-
-            {/* Quran verses referenced */}
             {answerQuranVerses.length > 0 && (
               <>
                 <Text style={[t.captionMedium, { color: colors.accent, marginTop: 16, marginBottom: 8, paddingHorizontal: 4 }]}>
@@ -327,7 +332,6 @@ export default function QuranScreen() {
               </>
             )}
 
-            {/* Hadith referenced */}
             {answerHadiths.length > 0 && (
               <>
                 <Text style={[t.captionMedium, { color: colors.accent, marginTop: 16, marginBottom: 8, paddingHorizontal: 4 }]}>
@@ -352,7 +356,7 @@ export default function QuranScreen() {
               </>
             )}
           </>
-        )}
+        ) : null}
       </ScrollView>
     </View>
   );
