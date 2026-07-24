@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, ActivityIndicator, useColorScheme, Keyboard } from 'react-native';
-import { Search, BookOpen, AlertCircle } from 'lucide-react-native';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, ActivityIndicator, useColorScheme, Keyboard, Alert } from 'react-native';
+import { Search, BookOpen, AlertCircle, HelpCircle } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
 
-const EDGE_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/quran-lookup`;
+const LOOKUP_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/quran-lookup`;
+const ANSWER_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/quran-answer`;
 
 const SEARCH_LANGUAGES = [
   { key: 'sahih_international', label: 'English (Sahih)' },
@@ -37,6 +38,36 @@ type SearchResult = {
   translationSource: string;
 };
 
+type HadithResult = {
+  id: number;
+  collection: string;
+  collectionName: string;
+  hadithNumber: number;
+  arabic?: string;
+  english: string;
+  grade: string;
+};
+
+type ConfidenceLevel = 'green' | 'yellow' | 'orange' | 'red';
+
+const CONFIDENCE_META: Record<ConfidenceLevel, { label: string; color: string; darkColor: string }> = {
+  green: { label: 'Direct Evidence', color: '#16a34a', darkColor: '#4ade80' },
+  yellow: { label: 'General Understanding', color: '#ca8a04', darkColor: '#facc15' },
+  orange: { label: 'Limited Evidence', color: '#ea580c', darkColor: '#fb923c' },
+  red: { label: 'No Clear Evidence', color: '#dc2626', darkColor: '#f87171' },
+};
+
+function isQuestion(input: string): boolean {
+  const trimmed = input.trim();
+  if (/^\d+\s*[:.]\s*\d+$/.test(trimmed)) return false;
+  const lower = trimmed.toLowerCase();
+  const questionStarts = ['what', 'why', 'how', 'does', 'do', 'is', 'are', 'can', 'should', 'would', 'could', 'tell', 'explain'];
+  const startsWithQW = questionStarts.some((w) => lower.startsWith(w));
+  if (startsWithQW) return true;
+  const words = trimmed.split(/\s+/);
+  return words.length >= 4;
+}
+
 export default function QuranScreen() {
   const colors = useColors();
   const scheme = useColorScheme();
@@ -49,38 +80,80 @@ export default function QuranScreen() {
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [showLangPicker, setShowLangPicker] = useState(false);
 
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [answerConfidence, setAnswerConfidence] = useState<ConfidenceLevel | null>(null);
+  const [answerQuranVerses, setAnswerQuranVerses] = useState<SearchResult[]>([]);
+  const [answerHadiths, setAnswerHadiths] = useState<HadithResult[]>([]);
+  const [noResults, setNoResults] = useState(false);
+
+  function resetAll() {
+    setAyahResult(null);
+    setSearchResults(null);
+    setError(null);
+    setAnswer(null);
+    setAnswerConfidence(null);
+    setAnswerQuranVerses([]);
+    setAnswerHadiths([]);
+    setNoResults(false);
+  }
+
+  async function handleAyahOrSearch(body: unknown) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('Not authenticated');
+    const res = await fetch(LOOKUP_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
+
+  async function handleQuestion(question: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('Not authenticated');
+    const res = await fetch(ANSWER_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, translation: language }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
+
   async function handleSubmit() {
     const trimmed = input.trim();
     if (!trimmed) return;
     Keyboard.dismiss();
     setLoading(true);
-    setError(null);
-    setAyahResult(null);
-    setSearchResults(null);
+    resetAll();
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('Not authenticated');
+      const questionMode = isQuestion(trimmed);
 
-      const ayahMatch = trimmed.match(/^(\d+)\s*[:.]\s*(\d+)$/);
-
-      const body = ayahMatch
-        ? { type: 'ayah', surah: parseInt(ayahMatch[1]), ayah: parseInt(ayahMatch[2]), translation: language }
-        : { type: 'search', query: trimmed, translation: language, limit: 10 };
-
-      const res = await fetch(EDGE_FUNCTION_URL, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-
-      if (ayahMatch) {
-        setAyahResult(data as QuranResult);
+      if (questionMode) {
+        const data = await handleQuestion(trimmed);
+        if (data.noResults) {
+          setNoResults(true);
+        } else {
+          setAnswer(data.answer);
+          setAnswerConfidence((data.confidence as ConfidenceLevel) || 'red');
+          setAnswerQuranVerses(data.quranVerses || []);
+          setAnswerHadiths(data.hadiths || []);
+        }
       } else {
-        setSearchResults(data.results as SearchResult[]);
+        const ayahMatch = trimmed.match(/^(\d+)\s*[:.]\s*(\d+)$/);
+        const body = ayahMatch
+          ? { type: 'ayah', surah: parseInt(ayahMatch[1]), ayah: parseInt(ayahMatch[2]), translation: language }
+          : { type: 'search', query: trimmed, translation: language, limit: 10 };
+        const data = await handleAyahOrSearch(body);
+        if (ayahMatch) {
+          setAyahResult(data as QuranResult);
+        } else {
+          setSearchResults(data.results as SearchResult[]);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -90,14 +163,19 @@ export default function QuranScreen() {
   }
 
   const currentLangLabel = SEARCH_LANGUAGES.find((l) => l.key === language)?.label || 'English (Sahih)';
+  const confidenceMeta = answerConfidence ? CONFIDENCE_META[answerConfidence] : null;
 
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
       <View style={[s.inputRow, { borderColor: colors.composerBorder, backgroundColor: colors.composerBg }]}>
-        <Search size={18} color={colors.textMuted} />
+        {isQuestion(input) ? (
+          <HelpCircle size={18} color={colors.textMuted} />
+        ) : (
+          <Search size={18} color={colors.textMuted} />
+        )}
         <TextInput
           style={[s.input, { color: colors.textPrimary }]}
-          placeholder="Verse (2:255) or search..."
+          placeholder="Verse (2:255), search, or ask..."
           placeholderTextColor={colors.textMuted}
           value={input}
           onChangeText={setInput}
@@ -157,6 +235,7 @@ export default function QuranScreen() {
       )}
 
       <ScrollView style={s.results} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        {/* ── Ayah result ── */}
         {ayahResult && (
           <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
             <Text style={[t.captionMedium, { color: colors.accent, marginBottom: 4 }]}>
@@ -172,6 +251,7 @@ export default function QuranScreen() {
           </View>
         )}
 
+        {/* ── Search results ── */}
         {searchResults && searchResults.length === 0 && (
           <View style={s.empty}>
             <Text style={[t.body, { color: colors.textMuted, textAlign: 'center' }]}>No results found.</Text>
@@ -199,6 +279,78 @@ export default function QuranScreen() {
                 )}
               </View>
             ))}
+          </>
+        )}
+
+        {/* ── Question / Answer mode ── */}
+        {noResults && (
+          <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
+            <Text style={[t.body, { color: colors.textMuted, textAlign: 'center', lineHeight: 22 }]}>
+              No directly relevant Quranic verses or hadith were found for your question. Try rephrasing with different keywords.
+            </Text>
+          </View>
+        )}
+
+        {answer && confidenceMeta && (
+          <>
+            {/* Confidence badge */}
+            <View style={s.confidenceRow}>
+              <View style={[s.confidenceDot, { backgroundColor: scheme === 'dark' ? confidenceMeta.darkColor : confidenceMeta.color }]} />
+              <Text style={[t.captionMedium, { color: scheme === 'dark' ? confidenceMeta.darkColor : confidenceMeta.color }]}>
+                {confidenceMeta.label}
+              </Text>
+            </View>
+
+            {/* Answer text */}
+            <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
+              <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22 }]}>{answer}</Text>
+            </View>
+
+            {/* Quran verses referenced */}
+            {answerQuranVerses.length > 0 && (
+              <>
+                <Text style={[t.captionMedium, { color: colors.accent, marginTop: 16, marginBottom: 8, paddingHorizontal: 4 }]}>
+                  Quran Verses Referenced
+                </Text>
+                {answerQuranVerses.map((v, i) => (
+                  <View key={v.verseKey} style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
+                    {i > 0 && <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />}
+                    <Text style={[t.captionMedium, { color: colors.accent, marginBottom: 4 }]}>
+                      {v.surahName} {v.verseKey}
+                    </Text>
+                    <Text style={[s.arabicText, { color: colors.textPrimary }]}>{v.arabic}</Text>
+                    <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
+                    <Text style={[t.body, { color: colors.textPrimary }]}>{v.translation}</Text>
+                    <Text style={[t.caption, { marginTop: 4 }]}>{v.translationSource}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+
+            {/* Hadith referenced */}
+            {answerHadiths.length > 0 && (
+              <>
+                <Text style={[t.captionMedium, { color: colors.accent, marginTop: 16, marginBottom: 8, paddingHorizontal: 4 }]}>
+                  Hadith Referenced
+                </Text>
+                {answerHadiths.map((h) => (
+                  <View key={`${h.collection}-${h.hadithNumber}`} style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
+                    <View style={s.hadithHeader}>
+                      <Text style={[t.captionMedium, { color: colors.accent, flex: 1 }]}>
+                        {h.collectionName} #{h.hadithNumber}
+                      </Text>
+                      <View style={[s.gradeBadge, { backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+                        <Text style={[t.caption, { color: colors.textMuted, fontSize: 11 }]}>{h.grade}</Text>
+                      </View>
+                    </View>
+                    <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22 }]}>{h.english}</Text>
+                    {h.arabic && (
+                      <Text style={[s.arabicText, { color: colors.textPrimary, marginTop: 12 }]}>{h.arabic}</Text>
+                    )}
+                  </View>
+                ))}
+              </>
+            )}
           </>
         )}
       </ScrollView>
@@ -242,4 +394,17 @@ const s = StyleSheet.create({
   },
   divider: { height: 1, marginVertical: 12 },
   empty: { paddingVertical: 40, alignItems: 'center' },
+  confidenceRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginBottom: 12, paddingHorizontal: 4,
+  },
+  confidenceDot: {
+    width: 10, height: 10, borderRadius: 5,
+  },
+  hadithHeader: {
+    flexDirection: 'row', alignItems: 'center', marginBottom: 8,
+  },
+  gradeBadge: {
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
+  },
 });
