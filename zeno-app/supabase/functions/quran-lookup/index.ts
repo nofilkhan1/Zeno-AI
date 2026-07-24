@@ -40,21 +40,33 @@ Deno.serve(async (req) => {
           status: 400, headers: { 'Content-Type': 'application/json' },
         });
       }
-      const url = `${UMMAH_BASE}/api/quran/surah/${surah}/ayah/${ayah}`;
-      console.log('[Quran] Fetching ayah:', url);
-      const res = await fetch(url, { headers });
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch ayah');
+      const [ayahRes, wordsRes] = await Promise.all([
+        fetch(`${UMMAH_BASE}/api/quran/surah/${surah}/ayah/${ayah}`, { headers }),
+        fetch(`${UMMAH_BASE}/api/quran/words/${surah}/${ayah}`, { headers }),
+      ]);
+      console.log('[Quran] Fetching ayah + words:', surah, ayah);
+
+      const ayahData = await ayahRes.json();
+      if (!ayahData.success) {
+        throw new Error(ayahData.error || 'Failed to fetch ayah');
       }
-      const v = data.data.verse;
+
+      const wordsData = await wordsRes.json();
+      let spacedTransliteration = '';
+      if (wordsData.success && Array.isArray(wordsData.data?.words)) {
+        spacedTransliteration = wordsData.data.words
+          .map((w: { transliteration?: { text?: string } }) => w.transliteration?.text || '')
+          .join(' ');
+      }
+
+      const v = ayahData.data.verse;
       const translationText = translation
         ? v.translations[translation]
         : v.translations.sahih_international;
       return new Response(JSON.stringify({
-        surah: data.data.surah,
+        surah: ayahData.data.surah,
         arabic: v.arabic,
-        transliteration: v.transliteration,
+        transliteration: spacedTransliteration || v.transliteration,
         translation: translationText,
         translationKey: translation || 'sahih_international',
         verseKey: v.verse_key,
