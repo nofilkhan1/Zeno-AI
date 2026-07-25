@@ -228,7 +228,7 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     name: 'Uthman ibn Affan (رضي الله عنه)',
     description: 'Uthman Dhun-Nurayn — the third caliph, known for his modesty, generosity, and compiling the standard Quranic text.',
     knownFor: 'Third caliph, compiled the Quran into one book, married to two daughters of Prophet ﷺ',
-    quranMention: 'Surah Al-Fatihah and general verses about those who spend in charity',
+    quranMention: 'Interpretive reference: general verses about charity are understood by some scholars to reference his generosity',
     hadithRef: 'Sahih al-Bukhari 3695 - "Every prophet has a companion in Paradise, and my companion there will be Uthman"',
   },
   'ali': {
