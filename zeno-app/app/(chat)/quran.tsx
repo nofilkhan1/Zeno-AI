@@ -253,7 +253,7 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     name: 'Bilal ibn Rabah (رضي الله عنه)',
     description: 'Bilal — an Ethiopian companion, the first muezzin (caller to prayer) in Islam. He was a slave freed by Abu Bakr (RA) and was known for his beautiful voice.',
     knownFor: 'First muezzin of Islam, freed by Abu Bakr (RA), steadfast under persecution in Mecca',
-    quranMention: 'Surah Al-Hujurat (49:13) — "Indeed the most noble of you in the sight of Allah is the most righteous"',
+    quranMention: 'Interpretive reference: Quran 49:13 is understood by many scholars to reference the principle of righteousness over lineage',
   },
 };
 
