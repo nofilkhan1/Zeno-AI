@@ -222,7 +222,7 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     name: 'Umar ibn al-Khattab (رضي الله عنه)',
     description: 'Umar al-Farooq — the second caliph of Islam, known for his strength, justice, and wisdom. His acceptance of Islam strengthened the Muslim community immensely.',
     knownFor: 'Second caliph, known as al-Farooq (the distinguisher), expanded the Islamic state, established the Hijri calendar',
-    quranMention: 'Surah Al-Anfal (8:30) is said to reference his role, and several verses were revealed in agreement with his opinions',
+    quranMention: 'Interpretive reference: Quran 8:30 is understood by some scholars to reference his role',
   },
   'uthman': {
     name: 'Uthman ibn Affan (رضي الله عنه)',
