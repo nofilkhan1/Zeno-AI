@@ -203,7 +203,7 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     name: 'Khadijah (رضي الله عنها)',
     description: 'Khadijah bint Khuwaylid — the first wife of Prophet ﷺ, the first person to accept Islam, and his greatest supporter. She was a wealthy businesswoman and a woman of noble character.',
     knownFor: 'First wife of Prophet ﷺ, first Muslim, mother of Fatimah (RA), supported the Prophet during the early revelation',
-    quranMention: 'Referenced indirectly in Surah Ad-Duha (93) — Allah consoled the Prophet after her passing',
+    quranMention: 'Interpretive reference: Quran 93 is understood by some scholars to refer to the consolation the Prophet received after her passing',
   },
   'aisha': {
     name: 'Aisha (رضي عنها)',
