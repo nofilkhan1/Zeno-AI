@@ -223,7 +223,6 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     description: 'Umar al-Farooq — the second caliph of Islam, known for his strength, justice, and wisdom. His acceptance of Islam strengthened the Muslim community immensely.',
     knownFor: 'Second caliph, known as al-Farooq (the distinguisher), expanded the Islamic state, established the Hijri calendar',
     quranMention: 'Surah Al-Anfal (8:30) is said to reference his role, and several verses were revealed in agreement with his opinions',
-    hadithRef: 'Sahih al-Bukhari 144 - "In every nation there is a Fitnah, and the Fitnah of my nation is wealth"',
   },
   'uthman': {
     name: 'Uthman ibn Affan (رضي الله عنه)',
