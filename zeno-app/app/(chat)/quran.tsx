@@ -8,6 +8,7 @@ import QuranAudioPlayer from '../../components/QuranAudioPlayer';
 const LOOKUP_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/quran-lookup`;
 const ANSWER_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/quran-answer`;
 const HADITH_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/hadith-search`;
+const TADABBUR_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/tadabbur`;
 
 const SEARCH_LANGUAGES = [
   { key: 'sahih_international', label: 'English (Sahih)' },
@@ -318,6 +319,11 @@ export default function QuranScreen() {
   const [tafsirExpanded, setTafsirExpanded] = useState(false);
   const [tafsirError, setTafsirError] = useState<string | null>(null);
 
+  const [tadabbur, setTadabbur] = useState<{ reflection: string; questions: string[] } | null>(null);
+  const [tadabburLoading, setTadabburLoading] = useState(false);
+  const [tadabburError, setTadabburError] = useState<string | null>(null);
+  const [tadabburExpanded, setTadabburExpanded] = useState(false);
+
   const [answer, setAnswer] = useState<string | null>(null);
   const [answerConfidence, setAnswerConfidence] = useState<ConfidenceLevel | null>(null);
   const [answerQuranVerses, setAnswerQuranVerses] = useState<SearchResult[]>([]);
@@ -344,6 +350,10 @@ export default function QuranScreen() {
     setTafsir(null);
     setTafsirExpanded(false);
     setTafsirError(null);
+    setTadabbur(null);
+    setTadabburLoading(false);
+    setTadabburError(null);
+    setTadabburExpanded(false);
     setNoResults(false);
     setHadithResults(null);
     setFigureResult(null);
@@ -399,6 +409,29 @@ export default function QuranScreen() {
       setTafsirError(err instanceof Error ? err.message : 'Failed to load tafsir');
     } finally {
       setTafsirLoading(false);
+    }
+  }
+
+  async function fetchTadabbur(surah: number, ayah: number) {
+    setTadabburLoading(true);
+    setTadabburError(null);
+    setTadabbur(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+      const res = await fetch(TADABBUR_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ surah, ayah, translation: language }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+      setTadabbur({ reflection: data.reflection, questions: data.questions || [] });
+      setTadabburExpanded(true);
+    } catch (err) {
+      setTadabburError(err instanceof Error ? err.message : 'Failed to generate reflection');
+    } finally {
+      setTadabburLoading(false);
     }
   }
 
@@ -814,7 +847,26 @@ export default function QuranScreen() {
                 const sNum = parseInt(parts[0]);
                 const aNum = parseInt(parts[1]);
                 if (sNum && aNum) {
-                  return <QuranAudioPlayer surah={sNum} ayah={aNum} verseKey={ayahResult.verseKey} />;
+                  return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <QuranAudioPlayer surah={sNum} ayah={aNum} verseKey={ayahResult.verseKey} />
+                      <Pressable
+                        style={[s.tafsirToggle, { borderColor: colors.composerBorder, marginTop: 0 }]}
+                        onPress={() => {
+                          if (tadabburExpanded) {
+                            setTadabburExpanded(false);
+                          } else {
+                            fetchTadabbur(sNum, aNum);
+                          }
+                        }}
+                      >
+                        <BookOpen size={14} color={colors.accent} />
+                        <Text style={[t.captionMedium, { color: colors.accent }]}>
+                          {tadabburLoading ? '...' : 'Reflect'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
                 }
                 return null;
               })()}
@@ -893,6 +945,63 @@ export default function QuranScreen() {
                   </>
                 )}
               </View>
+            )}
+          </View>
+        )}
+
+        {/* ── Tadabbur (Reflection) ── */}
+        {mode === 'quran' && tadabburExpanded && (
+          <View style={[s.card, { backgroundColor: scheme === 'dark' ? '#2A2520' : '#FBF8F3', borderColor: colors.accent }, softShadow()]}>
+            {tadabburLoading && (
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <ActivityIndicator size="small" color={colors.accent} />
+                <Text style={[t.caption, { color: colors.textMuted, marginTop: 8 }]}>Generating reflection…</Text>
+              </View>
+            )}
+
+            {tadabburError && (
+              <Text style={[t.caption, { color: colors.danger }]}>{tadabburError}</Text>
+            )}
+
+            {tadabbur && (
+              <>
+                <View style={[s.resultHeader, { marginBottom: 8 }]}>
+                  <Text style={[t.captionMedium, { color: colors.accent }]}>
+                    Tadabbur — Personal Reflection
+                  </Text>
+                  <Pressable onPress={() => { setTadabburExpanded(false); }}>
+                    <Text style={[t.caption, { color: colors.textMuted }]}>Hide</Text>
+                  </Pressable>
+                </View>
+
+                <Text style={[t.body, { color: colors.textPrimary, lineHeight: 24 }]}>
+                  {tadabbur.reflection}
+                </Text>
+
+                {tadabbur.questions.length > 0 && (
+                  <>
+                    <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
+                    <Text style={[t.captionMedium, { color: colors.accent, marginBottom: 8 }]}>
+                      Reflection Questions
+                    </Text>
+                    {tadabbur.questions.map((q, i) => (
+                      <View key={i} style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
+                        <Text style={[t.bodyMedium, { color: colors.accent, minWidth: 20 }]}>
+                          {i + 1}.
+                        </Text>
+                        <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22, flex: 1 }]}>
+                          {q}
+                        </Text>
+                      </View>
+                    ))}
+                  </>
+                )}
+
+                <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
+                <Text style={[t.caption, { color: colors.textMuted, fontStyle: 'italic', lineHeight: 18 }]}>
+                  This is a reflection aid, not a substitute for tafsir study or scholarly guidance.
+                </Text>
+              </>
             )}
           </View>
         )}
