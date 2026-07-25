@@ -215,7 +215,7 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     name: 'Abu Bakr (رضي الله عنه)',
     description: 'Abu Bakr as-Siddiq — the first adult male to accept Islam, closest companion of Prophet ﷺ, first caliph of Islam. Known for his unwavering faith and generosity.',
     knownFor: 'First caliph, companion of the cave, father of Aisha (RA), freed Bilal (RA)',
-    quranMention: 'Surah At-Tawbah (9:40) — "the second of the two when they were in the cave"',
+    quranMention: 'Interpretive reference: Quran 9:40 is understood by scholars to refer to Abu Bakr as "the second of the two when they were in the cave"',
     hadithRef: 'Sahih al-Bukhari 3660 - "If I were to take a close friend, I would take Abu Bakr"',
   },
   'umar': {
