@@ -118,6 +118,33 @@ Deno.serve(async (req) => {
       }), { headers: { 'Content-Type': 'application/json' } });
     }
 
+    if (type === 'words') {
+      if (!surah || !ayah) {
+        return new Response(JSON.stringify({ error: 'Missing surah or ayah' }), {
+          status: 400, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      const url = `${UMMAH_BASE}/api/quran/words/${surah}/${ayah}`;
+      console.log('[Quran] Fetching word-by-word:', url);
+      const res = await fetch(url, { headers });
+      const data = await res.json();
+      if (!data.success || !data.data?.words) {
+        return new Response(JSON.stringify({ error: 'No word data available for this verse' }), {
+          status: 404, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      const words = (data.data.words || []).map((w: { position: number; arabic: string; translation: string }) => ({
+        position: w.position,
+        arabic: w.arabic,
+        translation: w.translation?.trim() || '',
+      }));
+      return new Response(JSON.stringify({
+        verseKey: data.data.verse_key,
+        wordCount: data.data.word_count,
+        words,
+      }), { headers: { 'Content-Type': 'application/json' } });
+    }
+
     if (type === 'tafsir') {
       if (!surah || !ayah) {
         return new Response(JSON.stringify({ error: 'Missing surah or ayah' }), {
