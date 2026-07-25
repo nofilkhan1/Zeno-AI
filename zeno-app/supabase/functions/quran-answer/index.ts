@@ -9,7 +9,7 @@ const UMMAH_BASE = 'https://ummahapi.com';
 const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const NVIDIA_TIMEOUT = 60_000;
 const MAX_CONTEXT_CHARS = 6_000;
-const SEMANTIC_MIN_SIMILARITY = 0.5;
+const SEMANTIC_MIN_SIMILARITY = 0.30;
 
 // Comprehensive surah name map: all common names + alternate spellings → surah number
 const SURAH_NAMES: Record<string, number> = {
