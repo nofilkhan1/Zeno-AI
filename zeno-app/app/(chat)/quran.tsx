@@ -235,7 +235,7 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     name: 'Ali ibn Abi Talib (رضي الله عنه)',
     description: 'Ali — the cousin and son-in-law of Prophet ﷺ, fourth caliph, known for his bravery, knowledge, and eloquence. He grew up in the Prophet\'s household and was among the first to accept Islam.',
     knownFor: 'Fourth caliph, husband of Fatimah (RA), father of Hasan and Husayn, famously brave warrior',
-    quranMention: 'Surah Al-Ma\'idah (5:55) and Surah At-Tahrim (66:4) are linked to events involving him',
+    quranMention: 'Interpretive reference: Quran 5:55 and 66:4 are understood by many scholars to reference events involving him',
   },
   'hasan': {
     name: 'Hasan ibn Ali (رضي الله عنه)',
