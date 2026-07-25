@@ -185,7 +185,6 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     description: 'Prophet Yunus (Jonah) — swallowed by a great fish when he left his people in anger, then glorified Allah from the darkness.',
     knownFor: 'Swallowed by a whale, his prayer from the darkness, his people accepted after he left',
     quranMention: 'Surah Yunus (10), Surah Al-Anbiya (21:87-88), Surah As-Saffat (37:139-148)',
-    hadithRef: 'Sahih al-Bukhari 3414 - Prophet ﷺ said: "No Muslim makes this dua that Yunus made except Allah answers it"',
   },
   'maryam': {
     name: 'Maryam (Mary, عليها السلام)',
