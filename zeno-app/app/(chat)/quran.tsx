@@ -679,10 +679,10 @@ export default function QuranScreen() {
           </View>
         )}
 
-        {mode === 'hadith' && hadithResults && hadithResults.length === 0 && !loading && (
+        {mode === 'hadith' && noResults && !loading && !answer && (
           <View style={s.empty}>
             <Text style={[t.body, { color: colors.textMuted, textAlign: 'center' }]}>
-              {noResults ? 'No hadith found for this topic. Try different keywords.' : ''}
+              No hadith found for this topic. Try different keywords.
             </Text>
           </View>
         )}
@@ -720,6 +720,92 @@ export default function QuranScreen() {
                 )}
               </View>
             ))}
+          </>
+        )}
+
+        {/* ══════════════ HADITH Q&A FALLBACK ══════════════ */}
+        {mode === 'hadith' && answer && (
+          <>
+            {answer && confidenceMeta && (
+              <>
+                <View style={s.confidenceRow}>
+                  <View style={[s.confidenceDot, { backgroundColor: scheme === 'dark' ? confidenceMeta.darkColor : confidenceMeta.color }]} />
+                  <Text style={[t.captionMedium, { color: scheme === 'dark' ? confidenceMeta.darkColor : confidenceMeta.color }]}>
+                    {confidenceMeta.label}
+                  </Text>
+                </View>
+                <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
+                  <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22 }]}>{answer}</Text>
+                </View>
+              </>
+            )}
+
+            {answerQuranVerses.length > 0 && (
+              <>
+                <Text style={[t.captionMedium, { color: colors.accent, marginTop: 16, marginBottom: 8, paddingHorizontal: 4 }]}>
+                  Quran Verses Referenced
+                </Text>
+                {answerQuranVerses.map((v, i) => (
+                  <View key={v.verseKey} style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
+                    <View style={s.resultHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[t.captionMedium, { color: colors.accent, marginBottom: 4 }]}>
+                          {v.surahName} {v.verseKey}
+                        </Text>
+                      </View>
+                      <QuranAudioPlayer surah={v.surahNumber} ayah={v.ayah} verseKey={v.verseKey} />
+                    </View>
+                    <Text style={[s.arabicText, { color: colors.textPrimary }]}>{v.arabic}</Text>
+                    <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
+                    <Text style={[t.body, { color: colors.textPrimary }]}>{v.translation}</Text>
+                    <Text style={[t.caption, { marginTop: 4 }]}>{v.translationSource}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+
+            {answerHadiths.length > 0 && (
+              <>
+                <Text style={[t.captionMedium, { color: colors.accent, marginTop: 16, marginBottom: 8, paddingHorizontal: 4 }]}>
+                  Hadith Referenced
+                </Text>
+                {answerHadiths.map((h) => (
+                  <View key={`${h.collection}-${h.hadithNumber}`} style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
+                    <View style={s.hadithHeader}>
+                      <Text style={[t.captionMedium, { color: colors.accent, flex: 1 }]}>
+                        {h.collectionName} #{h.hadithNumber}
+                      </Text>
+                      <View style={[s.gradeBadge, { backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+                        <Text style={[t.caption, { color: colors.textMuted, fontSize: 11 }]}>{h.grade}</Text>
+                      </View>
+                    </View>
+                    <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22 }]}>{h.english}</Text>
+                    {h.arabic && (
+                      <Text style={[s.arabicText, { color: colors.textPrimary, marginTop: 12 }]}>{h.arabic}</Text>
+                    )}
+                  </View>
+                ))}
+              </>
+            )}
+
+            {answerTafsir && (
+              <>
+                <Text style={[t.captionMedium, { color: colors.accent, marginTop: 16, marginBottom: 8, paddingHorizontal: 4 }]}>
+                  Scholarly Explanation
+                </Text>
+                <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
+                  <Text style={[t.captionMedium, { color: colors.accent, marginBottom: 2 }]}>
+                    Tafsir {answerTafsir.source}
+                  </Text>
+                  <Text style={[t.caption, { color: colors.textMuted, marginBottom: 10 }]}>
+                    {answerTafsir.author}
+                  </Text>
+                  <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22 }]}>
+                    {answerTafsir.text}
+                  </Text>
+                </View>
+              </>
+            )}
           </>
         )}
 
