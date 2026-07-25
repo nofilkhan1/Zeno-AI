@@ -209,7 +209,7 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     name: 'Aisha (رضي عنها)',
     description: 'Aisha bint Abu Bakr — the wife of Prophet ﷺ, known as Umm al-Mu\'mineen (Mother of the Believers). She was a scholar, narrator of thousands of hadith, and a leader in Islamic jurisprudence.',
     knownFor: 'Wife of Prophet ﷺ, narrated over 2,200 hadith, expert in fiqh and tafsir',
-    quranMention: 'Surah An-Nur (24:11-20) relates to the incident of slander against her',
+    quranMention: 'Interpretive reference: Quran 24:11-20 is understood by many scholars to refer to the incident of slander against her',
   },
   'abu_bakr': {
     name: 'Abu Bakr (رضي الله عنه)',
