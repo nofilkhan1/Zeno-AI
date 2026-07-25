@@ -241,7 +241,7 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     name: 'Hasan ibn Ali (رضي الله عنه)',
     description: 'Hasan — the grandson of Prophet ﷺ, son of Ali and Fatimah (RA). He was a caliph for a short period and abdicated to preserve Muslim unity.',
     knownFor: 'Grandson of Prophet ﷺ, abdicated caliphate to preserve unity, leader of the youth of Paradise',
-    quranMention: 'Referenced as part of Ahl al-Bayt, Surah Al-Ahzab (33:33)',
+    quranMention: 'Interpretive reference: Quran 33:33 is understood by many scholars to include the Ahl al-Bayt',
   },
   'husayn': {
     name: 'Husayn ibn Ali (رضي الله عنه)',
