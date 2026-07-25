@@ -325,6 +325,11 @@ export default function QuranScreen() {
   const [tadabburError, setTadabburError] = useState<string | null>(null);
   const [tadabburExpanded, setTadabburExpanded] = useState(false);
 
+  const [wbwWords, setWbwWords] = useState<{ position: number; arabic: string; translation: string }[] | null>(null);
+  const [wbwLoading, setWbwLoading] = useState(false);
+  const [wbwExpanded, setWbwExpanded] = useState(false);
+  const [wbwError, setWbwError] = useState<string | null>(null);
+
   const [answer, setAnswer] = useState<string | null>(null);
   const [answerConfidence, setAnswerConfidence] = useState<ConfidenceLevel | null>(null);
   const [answerQuranVerses, setAnswerQuranVerses] = useState<SearchResult[]>([]);
@@ -356,6 +361,10 @@ export default function QuranScreen() {
     setTadabburLoading(false);
     setTadabburError(null);
     setTadabburExpanded(false);
+    setWbwWords(null);
+    setWbwLoading(false);
+    setWbwExpanded(false);
+    setWbwError(null);
     setNoResults(false);
     setHadithResults(null);
     setFigureResult(null);
@@ -434,6 +443,29 @@ export default function QuranScreen() {
       setTadabburError(err instanceof Error ? err.message : 'Failed to generate reflection');
     } finally {
       setTadabburLoading(false);
+    }
+  }
+
+  async function fetchWbw(surah: number, ayah: number) {
+    setWbwLoading(true);
+    setWbwError(null);
+    setWbwWords(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+      const res = await fetch(LOOKUP_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'words', surah, ayah }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+      setWbwWords(data.words || []);
+      setWbwExpanded(true);
+    } catch (err) {
+      setWbwError(err instanceof Error ? err.message : 'Failed to load word breakdown');
+    } finally {
+      setWbwLoading(false);
     }
   }
 
@@ -904,6 +936,23 @@ export default function QuranScreen() {
               </Text>
             </Pressable>
 
+            {/* Word-by-Word toggle */}
+            <Pressable
+              style={[s.tafsirToggle, { borderColor: colors.composerBorder }]}
+              onPress={() => {
+                setWbwExpanded(!wbwExpanded);
+                if (!wbwExpanded && !wbwWords && !wbwError) {
+                  const parts = ayahResult.verseKey.split(':');
+                  fetchWbw(parseInt(parts[0]), parseInt(parts[1]));
+                }
+              }}
+            >
+              <BookOpen size={14} color={colors.accent} />
+              <Text style={[t.captionMedium, { color: colors.accent }]}>
+                {wbwExpanded ? 'Hide Word by Word' : 'Word by Word'}
+              </Text>
+            </Pressable>
+
             {tafsirExpanded && (
               <View style={{ marginTop: 12 }}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
@@ -952,6 +1001,45 @@ export default function QuranScreen() {
                       </Text>
                     </ScrollView>
                   </>
+                )}
+              </View>
+            )}
+
+            {/* ── Word-by-Word breakdown ── */}
+            {wbwExpanded && (
+              <View style={{ marginTop: 12 }}>
+                {wbwLoading && <ActivityIndicator size="small" color={colors.accent} />}
+                {wbwError && <Text style={[t.caption, { color: colors.danger }]}>{wbwError}</Text>}
+                {wbwWords && wbwWords.length > 0 && (
+                  <>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6 }}>
+                      {wbwWords.map((w) => (
+                        <View
+                          key={w.position}
+                          style={{
+                            flexDirection: 'column', alignItems: 'center',
+                            paddingVertical: 6, paddingHorizontal: 8,
+                            borderRadius: radii.sm, borderWidth: 1, borderColor: colors.composerBorder,
+                            backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+                            minWidth: 56,
+                          }}
+                        >
+                          <Text style={{ fontSize: 16, fontFamily: 'Inter_400Regular', lineHeight: 28, textAlign: 'center', color: colors.textPrimary }}>
+                            {w.arabic}
+                          </Text>
+                          <Text style={[t.caption, { color: colors.textMuted, fontSize: 10, marginTop: 2, textAlign: 'center' }]}>
+                            {w.translation}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                    <Text style={[t.caption, { color: colors.textMuted, marginTop: 8, textAlign: 'center' }]}>
+                      {wbwWords.length} words
+                    </Text>
+                  </>
+                )}
+                {wbwWords && wbwWords.length === 0 && (
+                  <Text style={[t.caption, { color: colors.textMuted }]}>No word data available.</Text>
                 )}
               </View>
             )}
