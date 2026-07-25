@@ -6,6 +6,31 @@ const ummahApiKey = Deno.env.get('UMMAH_API_KEY');
 
 const UMMAH_BASE = 'https://ummahapi.com';
 
+const STOPWORDS = new Set([
+  'what', 'is', 'the', 'does', 'say', 'about', 'in', 'and', 'of', 'to',
+  'a', 'an', 'are', 'how', 'why', 'when', 'where', 'who', 'which', 'do',
+  'does', 'did', 'has', 'have', 'had', 'can', 'could', 'will', 'would',
+  'should', 'may', 'might', 'shall', 'that', 'this', 'these', 'those',
+  'it', 'its', 'they', 'them', 'their', 'we', 'our', 'you', 'your',
+  'he', 'she', 'him', 'her', 'his', 'me', 'my', 'i', 'not', 'no',
+  'or', 'but', 'if', 'then', 'than', 'so', 'as', 'with', 'without',
+  'all', 'any', 'some', 'each', 'every', 'both', 'neither', 'either',
+  'by', 'for', 'on', 'at', 'from', 'into', 'through', 'during', 'before',
+  'after', 'above', 'below', 'between', 'out', 'off', 'over', 'under',
+  'again', 'further', 'once', 'here', 'there', 'tell', 'me', 'explain',
+  'ruling', 'rulings', 'concept', 'meaning', 'definition',
+]);
+
+// Same keyword extraction used by quran-answer — strips question words
+// and keeps only meaningful topic terms
+function extractKeywords(input: string): string[] {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w));
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
@@ -34,14 +59,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    const keywords = extractKeywords(query);
+    const searchQuery = keywords.length > 0 ? keywords.join(' ') : query;
+    console.log(`[Hadith-Search] raw="${query}" extracted=[${keywords.join(', ')}] search="${searchQuery}" collection="${collection || 'all'}"`);
+
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (ummahApiKey) headers['x-api-key'] = ummahApiKey;
 
-    const params = new URLSearchParams({ q: query, limit: String(limit || 10) });
+    const params = new URLSearchParams({ q: searchQuery, limit: String(limit || 10) });
     if (collection) params.set('collection', collection);
 
     const url = `${UMMAH_BASE}/api/hadith/search?${params}`;
-    console.log(`[Hadith-Search] query="${query}" collection="${collection || 'all'}" limit=${limit || 10}`);
 
     const res = await fetch(url, { headers });
     const data = await res.json();

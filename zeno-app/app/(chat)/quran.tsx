@@ -91,6 +91,29 @@ const CONFIDENCE_META: Record<ConfidenceLevel, { label: string; color: string; d
   red: { label: 'No Clear Evidence', color: '#dc2626', darkColor: '#f87171' },
 };
 
+const STOPWORDS = new Set([
+  'what', 'is', 'the', 'does', 'say', 'about', 'in', 'and', 'of', 'to',
+  'a', 'an', 'are', 'how', 'why', 'when', 'where', 'who', 'which', 'do',
+  'does', 'did', 'has', 'have', 'had', 'can', 'could', 'will', 'would',
+  'should', 'may', 'might', 'shall', 'that', 'this', 'these', 'those',
+  'it', 'its', 'they', 'them', 'their', 'we', 'our', 'you', 'your',
+  'he', 'she', 'him', 'her', 'his', 'me', 'my', 'i', 'not', 'no',
+  'or', 'but', 'if', 'then', 'than', 'so', 'as', 'with', 'without',
+  'all', 'any', 'some', 'each', 'every', 'both', 'neither', 'either',
+  'by', 'for', 'on', 'at', 'from', 'into', 'through', 'during', 'before',
+  'after', 'above', 'below', 'between', 'out', 'off', 'over', 'under',
+  'again', 'further', 'once', 'here', 'there', 'tell', 'me', 'explain',
+  'ruling', 'rulings', 'concept', 'meaning', 'definition',
+]);
+
+function extractKeywords(input: string): string[] {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w));
+}
+
 function isQuestion(input: string): boolean {
   const trimmed = input.trim();
   if (/^\d+\s*[:.]\s*\d+$/.test(trimmed)) return false;
@@ -223,7 +246,10 @@ export default function QuranScreen() {
 
     try {
       if (mode === 'hadith') {
-        const data = await handleHadithSearch(trimmed);
+        const keywords = extractKeywords(trimmed);
+        const searchQuery = keywords.length > 0 ? keywords.join(' ') : trimmed;
+        console.log(`[Quran] Hadith search: raw="${trimmed}" → extracted=[${keywords.join(', ')}] → query="${searchQuery}"`);
+        const data = await handleHadithSearch(searchQuery);
         setHadithResults(data.hadiths || []);
         setHadithTotalFound(data.totalFound || 0);
         if ((data.hadiths || []).length === 0) {
