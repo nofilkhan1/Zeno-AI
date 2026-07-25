@@ -173,7 +173,6 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     description: 'Prophet Yusuf (Joseph) — known for his beauty, patience, and forgiveness. A full surah (Surah Yusuf, 12) is named after his story.',
     knownFor: 'Interpretation of dreams, resisted temptation, forgave his brothers',
     quranMention: 'Surah Yusuf (12) — the longest continuous story in the Quran',
-    hadithRef: 'Sahih al-Bukhari 4691 - "The most noble and honorable of you in the sight of Allah is the most righteous"',
   },
   'nuh': {
     name: 'Nuh (عليه السلام)',
