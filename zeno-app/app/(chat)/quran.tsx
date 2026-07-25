@@ -247,7 +247,7 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     name: 'Husayn ibn Ali (رضي الله عنه)',
     description: 'Husayn — the grandson of Prophet ﷺ, son of Ali and Fatimah (RA). He was martyred at Karbala and is deeply revered by Muslims.',
     knownFor: 'Grandson of Prophet ﷺ, martyred at Karbala, known for his stand against injustice',
-    quranMention: 'Referenced as part of Ahl al-Bayt, Surah Al-Ahzab (33:33)',
+    quranMention: 'Interpretive reference: Quran 33:33 is understood by many scholars to include the Ahl al-Bayt',
   },
   'bilal': {
     name: 'Bilal ibn Rabah (رضي الله عنه)',
