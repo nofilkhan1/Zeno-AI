@@ -242,7 +242,6 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     description: 'Hasan — the grandson of Prophet ﷺ, son of Ali and Fatimah (RA). He was a caliph for a short period and abdicated to preserve Muslim unity.',
     knownFor: 'Grandson of Prophet ﷺ, abdicated caliphate to preserve unity, leader of the youth of Paradise',
     quranMention: 'Referenced as part of Ahl al-Bayt, Surah Al-Ahzab (33:33)',
-    hadithRef: 'Sahih al-Bukhari 3623 - "Hasan and Husayn are the leaders of the youth of Paradise"',
   },
   'husayn': {
     name: 'Husayn ibn Ali (رضي الله عنه)',
