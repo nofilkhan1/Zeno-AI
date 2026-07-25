@@ -160,7 +160,6 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     description: 'Prophet Musa (Moses) — the most mentioned prophet in the Quran, given the Torah and sent to Pharaoh and Bani Israel.',
     knownFor: 'Received the Torah, split the sea, spoke directly to Allah',
     quranMention: 'Mentioned in 30+ surahs; Surah Al-Qasas (28), Surah Ta-Ha (20), Surah Al-A\'raf (7:103-162)',
-    hadithRef: 'Sahih Muslim 2377 - Prophet ﷺ said: "Do not prefer me over Musa"',
   },
   'isa': {
     name: 'Isa (عليه السلام)',
