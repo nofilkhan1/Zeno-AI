@@ -204,7 +204,6 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     description: 'Khadijah bint Khuwaylid — the first wife of Prophet ﷺ, the first person to accept Islam, and his greatest supporter. She was a wealthy businesswoman and a woman of noble character.',
     knownFor: 'First wife of Prophet ﷺ, first Muslim, mother of Fatimah (RA), supported the Prophet during the early revelation',
     quranMention: 'Referenced indirectly in Surah Ad-Duha (93) — Allah consoled the Prophet after her passing',
-    hadithRef: 'Sahih Muslim 2430 - "The best of its women is Khadijah bint Khuwaylid"',
   },
   'aisha': {
     name: 'Aisha (رضي عنها)',
