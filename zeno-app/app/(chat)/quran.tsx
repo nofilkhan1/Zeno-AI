@@ -179,7 +179,6 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     description: 'Prophet Nuh (Noah) — called his people for 950 years, built the ark by Allah\'s command, and was saved with the believers from the great flood.',
     knownFor: 'Built the ark, called his people for 950 years, survived the great flood',
     quranMention: 'Surah Nuh (71), Surah Hud (11:25-49), Surah Al-Ankabut (29:14-15)',
-    hadithRef: 'Sahih al-Bukhari 3344 - "Nuh will be the first intercessor on the Day of Judgment"',
   },
   'yunus': {
     name: 'Yunus (عليه السلام)',
