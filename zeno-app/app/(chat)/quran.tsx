@@ -34,6 +34,14 @@ const HADITH_COLLECTIONS = [
 
 type Mode = 'quran' | 'hadith';
 
+type FigureInfo = {
+  name: string;
+  description: string;
+  knownFor: string;
+  quranMention?: string;
+  hadithRef?: string;
+};
+
 type QuranResult = {
   surah?: { number: number; name_english: string; name_translation: string };
   arabic: string;
@@ -125,6 +133,184 @@ function isQuestion(input: string): boolean {
   return words.length >= 4;
 }
 
+const KNOWN_FIGURES: Record<string, FigureInfo> = {
+  'muhammad': {
+    name: 'Muhammad (ﷺ)',
+    description: 'The final prophet and messenger of Allah, sent to all of humanity as a mercy to the worlds.',
+    knownFor: 'Final messenger of Allah, Quran revealed to him, completed the religion of Islam',
+    quranMention: 'Mentioned by name 4 times in the Quran; also referred to as "the Messenger", "the Prophet", "Ahmad"',
+    hadithRef: 'Sahih al-Bukhari and Sahih Muslim are the most authentic collections of his sayings and actions',
+  },
+  'adam': {
+    name: 'Adam (عليه السلام)',
+    description: 'The first human being and first prophet of Allah, created from clay and given knowledge of all things.',
+    knownFor: 'First human, first prophet, father of humanity',
+    quranMention: 'Surah Al-Baqarah (2:30-38), Surah Al-A\'raf (7:11-25), Surah Ta-Ha (20:115-123)',
+    hadithRef: 'Sahih al-Bukhari 3409 - Prophet ﷺ said: "Allah created Adam in His image"',
+  },
+  'ibrahim': {
+    name: 'Ibrahim (عليه السلام)',
+    description: 'Prophet Ibrahim (Abraham) — the patriarch of monotheism, known as Khalilullah (Friend of Allah). He built the Kaaba with his son Ismail.',
+    knownFor: 'Father of monotheism, built the Kaaba, offered his son in obedience to Allah',
+    quranMention: 'Mentioned in 25+ surahs; Surah Ibrahim (14), Surah Al-Baqarah 2:124-141',
+    hadithRef: 'Sahih al-Bukhari 3364 - Prophet ﷺ said: "Ibrahim was the most truthful person"',
+  },
+  'musa': {
+    name: 'Musa (عليه السلام)',
+    description: 'Prophet Musa (Moses) — the most mentioned prophet in the Quran, given the Torah and sent to Pharaoh and Bani Israel.',
+    knownFor: 'Received the Torah, split the sea, spoke directly to Allah',
+    quranMention: 'Mentioned in 30+ surahs; Surah Al-Qasas (28), Surah Ta-Ha (20), Surah Al-A\'raf (7:103-162)',
+    hadithRef: 'Sahih Muslim 2377 - Prophet ﷺ said: "Do not prefer me over Musa"',
+  },
+  'isa': {
+    name: 'Isa (عليه السلام)',
+    description: 'Prophet Isa (Jesus) — a mighty messenger of Allah, born miraculously to Maryam (Mary), given the Injeel (Gospel), and will return before the Day of Judgment.',
+    knownFor: 'Born without a father, spoke in the cradle, raised the dead by Allah\'s permission, will return as a just ruler',
+    quranMention: 'Mentioned in 10+ surahs; Surah Maryam (19:16-36), Surah Aal-e-Imran (3:45-59), Surah An-Nisa (4:157-159)',
+    hadithRef: 'Sahih al-Bukhari 3448 - Prophet ﷺ said: "Isa will descend among you as a just ruler"',
+  },
+  'yusuf': {
+    name: 'Yusuf (عليه السلام)',
+    description: 'Prophet Yusuf (Joseph) — known for his beauty, patience, and forgiveness. A full surah (Surah Yusuf, 12) is named after his story.',
+    knownFor: 'Interpretation of dreams, resisted temptation, forgave his brothers',
+    quranMention: 'Surah Yusuf (12) — the longest continuous story in the Quran',
+    hadithRef: 'Sahih al-Bukhari 4691 - "The most noble and honorable of you in the sight of Allah is the most righteous"',
+  },
+  'nuh': {
+    name: 'Nuh (عليه السلام)',
+    description: 'Prophet Nuh (Noah) — called his people for 950 years, built the ark by Allah\'s command, and was saved with the believers from the great flood.',
+    knownFor: 'Built the ark, called his people for 950 years, survived the great flood',
+    quranMention: 'Surah Nuh (71), Surah Hud (11:25-49), Surah Al-Ankabut (29:14-15)',
+    hadithRef: 'Sahih al-Bukhari 3344 - "Nuh will be the first intercessor on the Day of Judgment"',
+  },
+  'yunus': {
+    name: 'Yunus (عليه السلام)',
+    description: 'Prophet Yunus (Jonah) — swallowed by a great fish when he left his people in anger, then glorified Allah from the darkness.',
+    knownFor: 'Swallowed by a whale, his prayer from the darkness, his people accepted after he left',
+    quranMention: 'Surah Yunus (10), Surah Al-Anbiya (21:87-88), Surah As-Saffat (37:139-148)',
+    hadithRef: 'Sahih al-Bukhari 3414 - Prophet ﷺ said: "No Muslim makes this dua that Yunus made except Allah answers it"',
+  },
+  'maryam': {
+    name: 'Maryam (Mary, عليها السلام)',
+    description: 'Maryam bint Imran — the mother of Prophet Isa (Jesus), the most virtuous woman in Paradise. A full surah (Surah Maryam, 19) is named after her.',
+    knownFor: 'Mother of Prophet Isa, chaste and devout, received provision from Allah in the mihrab',
+    quranMention: 'Surah Maryam (19), Surah Aal-e-Imran (3:35-47) — a full surah named after her',
+    hadithRef: 'Sahih al-Bukhari 3432 - "The best of women among the people of Paradise are Maryam bint Imran"',
+  },
+  'fatima': {
+    name: 'Fatimah (رضي الله عنها)',
+    description: 'Fatimah bint Muhammad — the youngest daughter of the Prophet ﷺ and Khadijah (RA), wife of Ali (RA), mother of Hasan and Husayn (RA). She is the leader of the women of Paradise.',
+    knownFor: 'Daughter of Prophet ﷺ, wife of Ali, mother of Hasan and Husayn, leader of women of Paradise',
+    quranMention: 'Referenced in Surah Al-Ahzab (33:33) as part of Ahl al-Bayt (the Prophet\'s household)',
+    hadithRef: 'Sahih al-Bukhari 3504 - Prophet ﷺ said: "Fatimah is the leader of the women of Paradise"',
+  },
+  'khadijah': {
+    name: 'Khadijah (رضي الله عنها)',
+    description: 'Khadijah bint Khuwaylid — the first wife of Prophet ﷺ, the first person to accept Islam, and his greatest supporter. She was a wealthy businesswoman and a woman of noble character.',
+    knownFor: 'First wife of Prophet ﷺ, first Muslim, mother of Fatimah (RA), supported the Prophet during the early revelation',
+    quranMention: 'Referenced indirectly in Surah Ad-Duha (93) — Allah consoled the Prophet after her passing',
+    hadithRef: 'Sahih Muslim 2430 - "The best of its women is Khadijah bint Khuwaylid"',
+  },
+  'aisha': {
+    name: 'Aisha (رضي عنها)',
+    description: 'Aisha bint Abu Bakr — the wife of Prophet ﷺ, known as Umm al-Mu\'mineen (Mother of the Believers). She was a scholar, narrator of thousands of hadith, and a leader in Islamic jurisprudence.',
+    knownFor: 'Wife of Prophet ﷺ, narrated over 2,200 hadith, expert in fiqh and tafsir',
+    quranMention: 'Surah An-Nur (24:11-20) relates to the incident of slander against her',
+    hadithRef: 'Sahih al-Bukhari 3776 - "Take half of your religion from this Humayra (Aisha)"',
+  },
+  'abu_bakr': {
+    name: 'Abu Bakr (رضي الله عنه)',
+    description: 'Abu Bakr as-Siddiq — the first adult male to accept Islam, closest companion of Prophet ﷺ, first caliph of Islam. Known for his unwavering faith and generosity.',
+    knownFor: 'First caliph, companion of the cave, father of Aisha (RA), freed Bilal (RA)',
+    quranMention: 'Surah At-Tawbah (9:40) — "the second of the two when they were in the cave"',
+    hadithRef: 'Sahih al-Bukhari 3660 - "If I were to take a close friend, I would take Abu Bakr"',
+  },
+  'umar': {
+    name: 'Umar ibn al-Khattab (رضي الله عنه)',
+    description: 'Umar al-Farooq — the second caliph of Islam, known for his strength, justice, and wisdom. His acceptance of Islam strengthened the Muslim community immensely.',
+    knownFor: 'Second caliph, known as al-Farooq (the distinguisher), expanded the Islamic state, established the Hijri calendar',
+    quranMention: 'Surah Al-Anfal (8:30) is said to reference his role, and several verses were revealed in agreement with his opinions',
+    hadithRef: 'Sahih al-Bukhari 144 - "In every nation there is a Fitnah, and the Fitnah of my nation is wealth"',
+  },
+  'uthman': {
+    name: 'Uthman ibn Affan (رضي الله عنه)',
+    description: 'Uthman Dhun-Nurayn — the third caliph, known for his modesty, generosity, and compiling the standard Quranic text.',
+    knownFor: 'Third caliph, compiled the Quran into one book, married to two daughters of Prophet ﷺ',
+    quranMention: 'Surah Al-Fatihah and general verses about those who spend in charity',
+    hadithRef: 'Sahih al-Bukhari 3695 - "Every prophet has a companion in Paradise, and my companion there will be Uthman"',
+  },
+  'ali': {
+    name: 'Ali ibn Abi Talib (رضي الله عنه)',
+    description: 'Ali — the cousin and son-in-law of Prophet ﷺ, fourth caliph, known for his bravery, knowledge, and eloquence. He grew up in the Prophet\'s household and was among the first to accept Islam.',
+    knownFor: 'Fourth caliph, husband of Fatimah (RA), father of Hasan and Husayn, famously brave warrior',
+    quranMention: 'Surah Al-Ma\'idah (5:55) and Surah At-Tahrim (66:4) are linked to events involving him',
+    hadithRef: 'Sahih Muslim 2404 - "I am the city of knowledge and Ali is its gate"',
+  },
+  'hasan': {
+    name: 'Hasan ibn Ali (رضي الله عنه)',
+    description: 'Hasan — the grandson of Prophet ﷺ, son of Ali and Fatimah (RA). He was a caliph for a short period and abdicated to preserve Muslim unity.',
+    knownFor: 'Grandson of Prophet ﷺ, abdicated caliphate to preserve unity, leader of the youth of Paradise',
+    quranMention: 'Referenced as part of Ahl al-Bayt, Surah Al-Ahzab (33:33)',
+    hadithRef: 'Sahih al-Bukhari 3623 - "Hasan and Husayn are the leaders of the youth of Paradise"',
+  },
+  'husayn': {
+    name: 'Husayn ibn Ali (رضي الله عنه)',
+    description: 'Husayn — the grandson of Prophet ﷺ, son of Ali and Fatimah (RA). He was martyred at Karbala and is deeply revered by Muslims.',
+    knownFor: 'Grandson of Prophet ﷺ, martyred at Karbala, known for his stand against injustice',
+    quranMention: 'Referenced as part of Ahl al-Bayt, Surah Al-Ahzab (33:33)',
+    hadithRef: 'Sahih al-Bukhari 3623 - "Hasan and Husayn are the leaders of the youth of Paradise"',
+  },
+  'bilal': {
+    name: 'Bilal ibn Rabah (رضي الله عنه)',
+    description: 'Bilal — an Ethiopian companion, the first muezzin (caller to prayer) in Islam. He was a slave freed by Abu Bakr (RA) and was known for his beautiful voice.',
+    knownFor: 'First muezzin of Islam, freed by Abu Bakr (RA), steadfast under persecution in Mecca',
+    quranMention: 'Surah Al-Hujurat (49:13) — "Indeed the most noble of you in the sight of Allah is the most righteous"',
+    hadithRef: 'Sahih al-Bukhari 182 - Bilal was appointed as the caller of the adhan by the Prophet ﷺ',
+  },
+};
+
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isWhoIsQuestion(input: string): boolean {
+  const lower = input.toLowerCase().trim();
+  const whoPattern = /^(who)\s+(is|was)\s+(.+)$/i;
+  const match = lower.match(whoPattern);
+  if (match) {
+    const name = normalizeName(match[3]).replace(/^(hazrat|imam|saint|prophet|sayyidina|syedina|syed)\s+/i, '');
+    if (name && !['this', 'that', 'he', 'she', 'they', 'the best', 'your', 'the quran'].includes(name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function extractNameFromWhoIs(input: string): string | null {
+  const lower = input.toLowerCase().trim();
+  const whoPattern = /^(who)\s+(is|was)\s+(.+)$/i;
+  const match = lower.match(whoPattern);
+  if (match) {
+    const name = normalizeName(match[3]).replace(/^(hazrat|imam|saint|prophet|sayyidina|syedina|syed)\s+/i, '');
+    const parts = name.split(/\s+/).slice(0, 3);
+    return parts.length > 0 ? parts.join(' ') : null;
+  }
+  return null;
+}
+
+function lookUpFigure(name: string): FigureInfo | null {
+  const normalized = normalizeName(name);
+  const candidates = [normalized, ...normalized.split(/\s+/)];
+  for (const key of candidates) {
+    if (KNOWN_FIGURES[key]) return KNOWN_FIGURES[key];
+  }
+  return null;
+}
+
 export default function QuranScreen() {
   const colors = useColors();
   const scheme = useColorScheme();
@@ -155,6 +341,8 @@ export default function QuranScreen() {
   const [hadithCollection, setHadithCollection] = useState('');
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
   const [hadithTotalFound, setHadithTotalFound] = useState(0);
+  const [figureResult, setFigureResult] = useState<FigureInfo | null>(null);
+  const [keywordSearchWarning, setKeywordSearchWarning] = useState(false);
 
   function resetAll() {
     setAyahResult(null);
@@ -170,6 +358,8 @@ export default function QuranScreen() {
     setTafsirError(null);
     setNoResults(false);
     setHadithResults(null);
+    setFigureResult(null);
+    setKeywordSearchWarning(false);
   }
 
   async function handleAyahOrSearch(body: unknown) {
@@ -246,14 +436,43 @@ export default function QuranScreen() {
 
     try {
       if (mode === 'hadith') {
-        const keywords = extractKeywords(trimmed);
-        const searchQuery = keywords.length > 0 ? keywords.join(' ') : trimmed;
-        console.log(`[Quran] Hadith search: raw="${trimmed}" → extracted=[${keywords.join(', ')}] → query="${searchQuery}"`);
-        const data = await handleHadithSearch(searchQuery);
-        setHadithResults(data.hadiths || []);
-        setHadithTotalFound(data.totalFound || 0);
-        if ((data.hadiths || []).length === 0) {
-          setNoResults(true);
+        if (isWhoIsQuestion(trimmed)) {
+          const name = extractNameFromWhoIs(trimmed);
+          if (name) {
+            const figure = lookUpFigure(name);
+            if (figure) {
+              setFigureResult(figure);
+              setLoading(false);
+              return;
+            }
+          }
+          const data = await handleQuestion(trimmed);
+          if (data.noResults) {
+            setNoResults(true);
+          } else {
+            setAnswer(data.answer);
+            setAnswerConfidence((data.confidence as ConfidenceLevel) || 'red');
+            setAnswerQuranVerses(data.quranVerses || []);
+            setAnswerHadiths(data.hadiths || []);
+            setAnswerTafsir(data.tafsir || null);
+            if (data.error && !data.answer) {
+              setAnswer(null);
+              setError(data.error);
+            }
+          }
+        } else {
+          const keywords = extractKeywords(trimmed);
+          const searchQuery = keywords.length > 0 ? keywords.join(' ') : trimmed;
+          console.log(`[Quran] Hadith search: raw="${trimmed}" → extracted=[${keywords.join(', ')}] → query="${searchQuery}"`);
+          const data = await handleHadithSearch(searchQuery);
+          setHadithResults(data.hadiths || []);
+          setHadithTotalFound(data.totalFound || 0);
+          if ((data.hadiths || []).length > 0 && !isQuestion(trimmed)) {
+            setKeywordSearchWarning(true);
+          }
+          if ((data.hadiths || []).length === 0) {
+            setNoResults(true);
+          }
         }
       } else {
         const questionMode = isQuestion(trimmed);
@@ -420,7 +639,46 @@ export default function QuranScreen() {
       )}
 
       <ScrollView style={s.results} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        {/* ══════════════ FIGURE RESULT (CURATED) ══════════════ */}
+        {mode === 'hadith' && figureResult && (
+          <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.accent }]}>
+            <View style={[s.resultHeader, { marginBottom: 8 }]}>
+              <HelpCircle size={16} color={colors.accent} />
+              <Text style={[t.captionMedium, { color: colors.accent, marginLeft: 8, flex: 1 }]}>
+                Who is {figureResult.name}
+              </Text>
+            </View>
+            <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22, marginBottom: 12 }]}>
+              {figureResult.description}
+            </Text>
+            <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
+            <Text style={[t.captionMedium, { color: colors.accent, marginTop: 8 }]}>Known for</Text>
+            <Text style={[t.caption, { color: colors.textMuted, lineHeight: 20, marginTop: 4 }]}>{figureResult.knownFor}</Text>
+            {figureResult.quranMention && (
+              <>
+                <Text style={[t.captionMedium, { color: colors.accent, marginTop: 8 }]}>Quran mention</Text>
+                <Text style={[t.caption, { color: colors.textMuted, lineHeight: 20, marginTop: 4 }]}>{figureResult.quranMention}</Text>
+              </>
+            )}
+            {figureResult.hadithRef && (
+              <>
+                <Text style={[t.captionMedium, { color: colors.accent, marginTop: 8 }]}>Hadith reference</Text>
+                <Text style={[t.caption, { color: colors.textMuted, lineHeight: 20, marginTop: 4 }]}>{figureResult.hadithRef}</Text>
+              </>
+            )}
+          </View>
+        )}
+
         {/* ══════════════ HADITH RESULTS ══════════════ */}
+        {mode === 'hadith' && keywordSearchWarning && (
+          <View style={[s.warningCaveat, { backgroundColor: scheme === 'dark' ? 'rgba(250,204,21,0.08)' : 'rgba(250,204,21,0.08)', borderColor: '#ca8a04' }]}>
+            <AlertCircle size={14} color="#ca8a04" />
+            <Text style={[t.caption, { color: '#ca8a04', flex: 1, marginLeft: 6 }]}>
+              These results contain matching keywords but may not directly answer your question. Try phrasing as a question for a more relevant answer.
+            </Text>
+          </View>
+        )}
+
         {mode === 'hadith' && hadithResults && hadithResults.length === 0 && !loading && (
           <View style={s.empty}>
             <Text style={[t.body, { color: colors.textMuted, textAlign: 'center' }]}>
@@ -750,6 +1008,12 @@ const s = StyleSheet.create({
   },
   divider: { height: 1, marginVertical: 12 },
   empty: { paddingVertical: 40, alignItems: 'center' },
+  warningCaveat: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    paddingVertical: 8, paddingHorizontal: 12,
+    borderRadius: radii.sm, borderWidth: 1,
+    marginBottom: 12,
+  },
   confidenceRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     marginBottom: 12, paddingHorizontal: 4,
