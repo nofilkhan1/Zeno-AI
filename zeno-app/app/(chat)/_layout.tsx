@@ -43,6 +43,7 @@ export default function ChatLayout() {
       <Stack.Screen name="chat/[chatId]" options={{ title: 'Chat', headerBackTitle: 'Back' }} />
       <Stack.Screen name="quran" options={{ title: 'Quran GPT', headerBackTitle: 'Back' }} />
       <Stack.Screen name="hifz" options={{ title: 'Hifz (Memorization)', headerBackTitle: 'Back' }} />
+      <Stack.Screen name="quiz" options={{ title: 'Quran Quiz', headerBackTitle: 'Back' }} />
     </Stack>
   );
 }
