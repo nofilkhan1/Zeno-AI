@@ -254,7 +254,6 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     description: 'Bilal — an Ethiopian companion, the first muezzin (caller to prayer) in Islam. He was a slave freed by Abu Bakr (RA) and was known for his beautiful voice.',
     knownFor: 'First muezzin of Islam, freed by Abu Bakr (RA), steadfast under persecution in Mecca',
     quranMention: 'Surah Al-Hujurat (49:13) — "Indeed the most noble of you in the sight of Allah is the most righteous"',
-    hadithRef: 'Sahih al-Bukhari 182 - Bilal was appointed as the caller of the adhan by the Prophet ﷺ',
   },
 };
 
