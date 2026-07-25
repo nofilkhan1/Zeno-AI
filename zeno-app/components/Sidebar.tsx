@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, Animated, Easing, StyleSheet, ActivityIndicator, TextInput, Pressable, useColorScheme } from 'react-native';
 import ActionDialog from './ActionDialog';
-import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal, BookOpen } from 'lucide-react-native';
+import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal, BookOpen, BookMarked } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Chat } from '../lib/types';
@@ -182,6 +182,14 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
             >
               <BookOpen size={18} color={colors.accent} />
               <Text style={[t.body, { color: colors.accent }]}>Quran GPT</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [s.quranButton, { borderTopColor: colors.composerBorder }, pressed && { opacity: 0.7 }]}
+              onPress={() => router.push('/hifz')}
+            >
+              <BookMarked size={18} color={colors.accent} />
+              <Text style={[t.body, { color: colors.accent }]}>Hifz</Text>
             </Pressable>
 
             <Pressable

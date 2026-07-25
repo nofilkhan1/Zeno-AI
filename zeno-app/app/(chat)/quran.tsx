@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, ActivityIndicator, useColorScheme, Keyboard } from 'react-native';
-import { Search, BookOpen, AlertCircle, HelpCircle, Volume2, Library, Hash } from 'lucide-react-native';
+import { Search, BookOpen, AlertCircle, HelpCircle, Volume2, Library, Hash, BookMarked } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
 import QuranAudioPlayer from '../../components/QuranAudioPlayer';
@@ -337,6 +338,7 @@ export default function QuranScreen() {
   const [hadithTotalFound, setHadithTotalFound] = useState(0);
   const [figureResult, setFigureResult] = useState<FigureInfo | null>(null);
   const [keywordSearchWarning, setKeywordSearchWarning] = useState(false);
+  const router = useRouter();
 
   function resetAll() {
     setAyahResult(null);
@@ -554,6 +556,13 @@ export default function QuranScreen() {
         >
           <Library size={14} color={mode === 'hadith' ? '#fff' : colors.textMuted} />
           <Text style={[t.caption, { color: mode === 'hadith' ? '#fff' : colors.textMuted }]}>Hadith</Text>
+        </Pressable>
+        <Pressable
+          style={[s.modeTab, { backgroundColor: 'transparent' }]}
+          onPress={() => router.push('/hifz')}
+        >
+          <BookMarked size={14} color={colors.textMuted} />
+          <Text style={[t.caption, { color: colors.textMuted }]}>Hifz</Text>
         </Pressable>
       </View>
 
