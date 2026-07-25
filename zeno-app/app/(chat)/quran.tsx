@@ -198,7 +198,6 @@ const KNOWN_FIGURES: Record<string, FigureInfo> = {
     description: 'Fatimah bint Muhammad — the youngest daughter of the Prophet ﷺ and Khadijah (RA), wife of Ali (RA), mother of Hasan and Husayn (RA). She is the leader of the women of Paradise.',
     knownFor: 'Daughter of Prophet ﷺ, wife of Ali, mother of Hasan and Husayn, leader of women of Paradise',
     quranMention: 'Referenced in Surah Al-Ahzab (33:33) as part of Ahl al-Bayt (the Prophet\'s household)',
-    hadithRef: 'Sahih al-Bukhari 3504 - Prophet ﷺ said: "Fatimah is the leader of the women of Paradise"',
   },
   'khadijah': {
     name: 'Khadijah (رضي الله عنها)',
