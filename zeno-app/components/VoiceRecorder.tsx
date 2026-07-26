@@ -152,8 +152,8 @@ export default function VoiceRecorder({ onTranscript, onStop, onCancel }: Props)
           raw = new TextDecoder().decode(e.data);
         } else if (e.data && typeof e.data === 'object' && 'data' in (e.data as any)) {
           raw = String((e.data as any).data);
-        } else if (typeof Buffer !== 'undefined' && e.data instanceof Buffer) {
-          raw = e.data.toString('utf-8');
+        } else if (e.data instanceof Uint8Array) {
+          raw = new TextDecoder().decode(e.data);
         } else {
           console.log('[STT] Unhandled message data type, cannot parse');
           return;
