@@ -4,7 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Source } from '../lib/types';
 import { useColors, typography, radii, softShadow } from '../lib/theme';
 import { Copy, Check, Volume2, VolumeX } from 'lucide-react-native';
-import { speak, stopTTS, subscribeToTTS, getTTSState } from '../lib/tts';
+import { speak, stopTTS, subscribeToTTS } from '../lib/tts';
 
 type Props = {
   role: 'user' | 'assistant' | 'system';
@@ -61,6 +61,7 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
   const [ttsLoading, setTtsLoading] = useState(false);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [ttsError, setTtsError] = useState('');
+  const ttsOwnerRef = useRef(`message:${messageId || Math.random().toString(36).slice(2, 10)}`);
   const actionFade = useRef(new Animated.Value(0)).current;
 
   const segments = hasSources ? parseCitations(content) : [{ type: 'text' as const, text: content }];
@@ -85,7 +86,8 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
 
   // Subscribe to global TTS state to sync across messages
   useEffect(() => {
-    const unsub = subscribeToTTS((state, err) => {
+    const unsub = subscribeToTTS((state, err, owner) => {
+      if (owner !== ttsOwnerRef.current) return;
       if (state === 'loading') {
         setTtsLoading(true);
         setTtsPlaying(false);
@@ -119,8 +121,8 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
       return;
     }
     setTtsError('');
-    speak(content).catch((err) => {
-      setTtsError(err instanceof Error ? err.message : 'TTS failed');
+    void speak(content, { owner: ttsOwnerRef.current, interrupt: false }).then((result) => {
+      if (result.reason === 'error') setTtsError('TTS failed');
     });
   }
 

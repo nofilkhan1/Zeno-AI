@@ -5,92 +5,119 @@ import { createAudioPlayer } from 'expo-audio';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 
 type TTSState = 'idle' | 'loading' | 'playing' | 'error';
-type TTSListener = (state: TTSState, errorMsg?: string) => void;
+type TTSListener = (state: TTSState, errorMsg?: string, owner?: string, sessionId?: number) => void;
+type CompletionReason = 'finished' | 'fallback' | 'cancelled' | 'blocked' | 'error';
+
+export type SpeakOptions = {
+  owner?: string;
+  sessionId?: number;
+  chunk?: number;
+  interrupt?: boolean;
+};
+
+export type TTSPlaybackResult = {
+  completed: boolean;
+  reason: CompletionReason;
+};
+
+type ActivePlayback = {
+  id: number;
+  owner: string;
+  sessionId?: number;
+  chunk?: number;
+  resolve: (result: TTSPlaybackResult) => void;
+  playbackSub: { remove: () => void } | null;
+  fallbackTimer: ReturnType<typeof setTimeout> | null;
+};
 
 let player: ReturnType<typeof createAudioPlayer> | null = null;
-let listeners: Set<TTSListener> = new Set();
-let _state: TTSState = 'idle';
-let _errorMsg = '';
-let playbackSub: { remove: () => void } | null = null;
+let activePlayback: ActivePlayback | null = null;
+let nextPlaybackId = 0;
+const listeners = new Set<TTSListener>();
+let state: TTSState = 'idle';
+let errorMessage = '';
 
-function notify() {
-  listeners.forEach((l) => l(_state, _errorMsg));
+function logTts(event: string, details: Record<string, number | string | boolean | undefined>) {
+  console.log('[TTS-DIAG]', event, details);
 }
 
-function setState(s: TTSState, err?: string) {
-  _state = s;
-  _errorMsg = err || '';
-  notify();
+function notify(owner?: string, sessionId?: number) {
+  listeners.forEach((listener) => listener(state, errorMessage, owner, sessionId));
 }
 
-export function subscribeToTTS(fn: TTSListener) {
-  listeners.add(fn);
+function setState(next: TTSState, owner?: string, sessionId?: number, error?: string) {
+  state = next;
+  errorMessage = error || '';
+  notify(owner, sessionId);
+}
+
+export function subscribeToTTS(listener: TTSListener) {
+  listeners.add(listener);
   return () => {
-    listeners.delete(fn);
+    listeners.delete(listener);
   };
 }
 
 export function getTTSState() {
-  return { state: _state, error: _errorMsg };
-}
-
-function stopFinishCheck() {
-  if (playbackSub) {
-    playbackSub.remove();
-    playbackSub = null;
-  }
-}
-
-function startFinishCheck() {
-  stopFinishCheck();
-  if (!player) {
-    console.warn('[TTS] startFinishCheck: no player');
-    return;
-  }
-  try {
-    playbackSub = player.addListener('playbackStatusUpdate', (status: any) => {
-      console.log('[TTS-DEBUG] 5. Playback status event: didJustFinish=' + status.didJustFinish + ' isPlaying=' + status.isPlaying + ' currentTime=' + (status as any).currentTime + ' duration=' + (status as any).duration);
-      if (status.didJustFinish) {
-        console.log('[TTS-DEBUG] 5. Audio playback finished (didJustFinish=true)');
-        stopFinishCheck();
-        setState('idle');
-      }
-    });
-    console.log('[TTS-DEBUG] 5. Subscribed to playbackStatusUpdate event');
-  } catch (e) {
-    console.error('[TTS-DEBUG] 5. Failed to subscribe to playbackStatusUpdate:', e);
-  }
+  return { state, error: errorMessage, owner: activePlayback?.owner, sessionId: activePlayback?.sessionId };
 }
 
 function ensurePlayer() {
   if (!player) {
-    console.log('[TTS] ensurePlayer: creating new player');
     player = createAudioPlayer(null, { downloadFirst: false });
-    // Step 8: explicitly set volume to max (default might be 0 on some platforms)
-    try {
-      (player as any).volume = 1.0;
-      console.log('[TTS-DEBUG] 8. Player volume set to 1.0');
-    } catch (e) {
-      console.error('[TTS-DEBUG] 8. Failed to set volume:', e);
-    }
-  } else {
-    console.log('[TTS] ensurePlayer: reusing existing player');
+    try { (player as any).volume = 1; } catch {}
   }
   return player;
 }
 
-function cleanupPlayer() {
-  stopFinishCheck();
-  if (player) {
-    try { player.pause(); } catch {}
-    try { (player as any).release?.(); } catch {}
-    player = null;
-  }
+function clearPlaybackResources(playback: ActivePlayback) {
+  playback.playbackSub?.remove();
+  playback.playbackSub = null;
+  if (playback.fallbackTimer) clearTimeout(playback.fallbackTimer);
+  playback.fallbackTimer = null;
 }
 
-export function stopTTS(): void {
-  cleanupPlayer();
-  setState('idle');
+function settlePlayback(playback: ActivePlayback, result: TTSPlaybackResult, error?: string) {
+  if (activePlayback?.id !== playback.id) return;
+  clearPlaybackResources(playback);
+  activePlayback = null;
+  setState(result.reason === 'error' ? 'error' : 'idle', playback.owner, playback.sessionId, error);
+  logTts(result.reason === 'finished' || result.reason === 'fallback' ? 'playback-finish' : 'playback-cancel', {
+    owner: playback.owner,
+    sessionId: playback.sessionId,
+    chunk: playback.chunk,
+    reason: result.reason,
+  });
+  playback.resolve(result);
+}
+
+function cancelActivePlayback(reason: 'cancelled' | 'replaced') {
+  const playback = activePlayback;
+  if (!playback) return;
+  try { player?.pause(); } catch {}
+  settlePlayback(playback, { completed: false, reason: 'cancelled' });
+  logTts('playback-cancel-reason', { owner: playback.owner, sessionId: playback.sessionId, chunk: playback.chunk, reason });
+}
+
+function attachCompletionObserver(playback: ActivePlayback, audioPlayer: ReturnType<typeof createAudioPlayer>) {
+  playback.playbackSub = audioPlayer.addListener('playbackStatusUpdate', (status: any) => {
+    if (activePlayback?.id !== playback.id) return;
+    if (status.didJustFinish) {
+      settlePlayback(playback, { completed: true, reason: 'finished' });
+      return;
+    }
+
+    const duration = Number(status.duration);
+    const currentTime = Number(status.currentTime) || 0;
+    if (!playback.fallbackTimer && Number.isFinite(duration) && duration > currentTime) {
+      const fallbackDelayMs = Math.ceil((duration - currentTime) * 1000) + 1200;
+      playback.fallbackTimer = setTimeout(() => {
+        if (activePlayback?.id === playback.id) {
+          settlePlayback(playback, { completed: true, reason: 'fallback' });
+        }
+      }, fallbackDelayMs);
+    }
+  });
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -98,108 +125,80 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const chunkSize = 8192;
   let result = '';
   for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-    result += String.fromCharCode(...chunk);
+    result += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunkSize, bytes.length)));
   }
   return btoa(result);
 }
 
-export async function speak(text: string): Promise<void> {
-  stopFinishCheck();
-  if (player) {
-    try { player.pause(); } catch {}
-  }
-
-  setState('loading');
-
+async function startPlayback(text: string, playback: ActivePlayback) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) throw new Error('Not signed in');
 
-    console.log('[TTS] Fetching audio for text:', text.slice(0, 80));
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/tts`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!response.ok) throw new Error(`TTS error ${response.status}`);
 
-    console.log('[TTS-DEBUG] 2. Fetching TTS API...');
-    let response: Response;
-    try {
-      response = await fetch(`${SUPABASE_URL}/functions/v1/tts`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text }),
-      });
-    } catch (e) {
-      console.error('[TTS-DEBUG] ERROR at step 2 (API fetch):', e);
-      throw e;
-    }
+    const audioBuffer = await response.arrayBuffer();
+    if (audioBuffer.byteLength === 0) throw new Error('Received empty audio response');
+    if (activePlayback?.id !== playback.id) return;
 
-    console.log('[TTS] Response status:', response.status);
+    const fileUri = `${FileSystem.cacheDirectory}tts-${playback.id}.wav`;
+    await FileSystem.writeAsStringAsync(fileUri, arrayBufferToBase64(audioBuffer), {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    if (activePlayback?.id !== playback.id) return;
 
-    if (!response.ok) {
-      const errBody = await response.json().catch(() => ({}));
-      console.error('[TTS-DEBUG] ERROR at step 2 (API error response):', errBody);
-      throw new Error((errBody as any).error || `TTS error ${response.status}`);
-    }
+    const audioPlayer = ensurePlayer();
+    attachCompletionObserver(playback, audioPlayer);
+    audioPlayer.replace({ uri: fileUri });
+    setState('playing', playback.owner, playback.sessionId);
+    logTts('playback-start', { owner: playback.owner, sessionId: playback.sessionId, chunk: playback.chunk });
+    audioPlayer.play();
+  } catch (error) {
+    if (activePlayback?.id !== playback.id) return;
+    const message = error instanceof Error ? error.message : 'TTS failed';
+    settlePlayback(playback, { completed: false, reason: 'error' }, message);
+  }
+}
 
-    let audioBuffer: ArrayBuffer;
-    try {
-      audioBuffer = await response.arrayBuffer();
-    } catch (e) {
-      console.error('[TTS-DEBUG] ERROR at step 2 (arrayBuffer()):', e);
-      throw e;
-    }
-    console.log('[TTS-DEBUG] 2. API response status:', response.status, 'audio size:', audioBuffer.byteLength);
+export function speak(text: string, options: SpeakOptions = {}): Promise<TTSPlaybackResult> {
+  const owner = options.owner || 'message';
+  if (activePlayback && options.interrupt === false) {
+    logTts('playback-blocked', { owner, sessionId: options.sessionId, chunk: options.chunk, activeOwner: activePlayback.owner });
+    return Promise.resolve({ completed: false, reason: 'blocked' });
+  }
 
-    if (audioBuffer.byteLength === 0) {
-      throw new Error('Received empty audio response');
-    }
+  cancelActivePlayback('replaced');
+  const id = ++nextPlaybackId;
+  return new Promise((resolve) => {
+    const playback: ActivePlayback = {
+      id,
+      owner,
+      sessionId: options.sessionId,
+      chunk: options.chunk,
+      resolve,
+      playbackSub: null,
+      fallbackTimer: null,
+    };
+    activePlayback = playback;
+    setState('loading', owner, options.sessionId);
+    logTts('playback-request', { owner, sessionId: options.sessionId, chunk: options.chunk, textChars: text.length });
+    void startPlayback(text, playback);
+  });
+}
 
-    let fileUri: string;
-    try {
-      const base64 = arrayBufferToBase64(audioBuffer);
-      fileUri = `${FileSystem.cacheDirectory}tts-${Date.now()}.wav`;
+export function stopTTS(reason = 'manual') {
+  cancelActivePlayback('cancelled');
+  logTts('stop', { reason });
+}
 
-      await FileSystem.writeAsStringAsync(fileUri, base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      console.log('[TTS-DEBUG] 3. Audio saved to:', fileUri);
-    } catch (e) {
-      console.error('[TTS-DEBUG] ERROR at step 3 (save audio to file):', e);
-      throw e;
-    }
-
-    console.log('[TTS-DEBUG] 3. Loading audio into player');
-    const p = ensurePlayer();
-    if (!p) {
-      console.error('[TTS-DEBUG] ERROR at step 3: ensurePlayer returned null');
-      throw new Error('Player is null');
-    }
-    console.log('[TTS] Calling player.replace() with uri:', fileUri);
-    try {
-      p.replace({ uri: fileUri });
-      console.log('[TTS-DEBUG] 3. player.replace() succeeded');
-    } catch (e) {
-      console.error('[TTS-DEBUG] ERROR at step 3 (player.replace()):', e);
-      throw e;
-    }
-    setState('playing');
-    console.log('[TTS-DEBUG] 4. Calling player.play()');
-    try {
-      const playResult = p.play();
-      console.log('[TTS-DEBUG] 4. play() called, result:', playResult);
-    } catch (e) {
-      console.error('[TTS-DEBUG] ERROR at step 4 (player.play()):', e);
-      throw e;
-    }
-    // Step 5: playback completion detected via playbackStatusUpdate event
-    console.log('[TTS-DEBUG] 5. Subscribing to playbackStatusUpdate event');
-    startFinishCheck();
-  } catch (err) {
-    console.error('[TTS] Error:', err);
-    cleanupPlayer();
-    const msg = err instanceof Error ? err.message : 'TTS failed';
-    setState('error', msg);
-    throw err;
+export function stopTTSForOwner(owner: string, reason = 'manual') {
+  if (activePlayback?.owner === owner) {
+    cancelActivePlayback('cancelled');
+    logTts('stop', { owner, reason });
   }
 }

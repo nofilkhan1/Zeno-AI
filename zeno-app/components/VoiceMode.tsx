@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAudioStream, requestRecordingPermissionsAsync, setAudioModeAsync } from 'expo-audio';
 import type { AudioStreamBuffer } from 'expo-audio';
 import { useColors, typography } from '../lib/theme';
-import { speak, stopTTS, subscribeToTTS, getTTSState } from '../lib/tts';
+import { speak, stopTTSForOwner } from '../lib/tts';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_HOST = SUPABASE_URL.replace('https://', '');
@@ -38,9 +38,9 @@ function logVoiceDiagnostic(event: string, details: Record<string, boolean | num
   console.log('[VOICE-DIAG]', event, details);
 }
 
-function combineTranscriptSegments(finalized: string, interim: string): string {
+function mergeTranscriptSegments(finalized: string, incoming: string): string {
   const finalWords = finalized.trim().split(/\s+/).filter(Boolean);
-  const interimWords = interim.trim().split(/\s+/).filter(Boolean);
+  const interimWords = incoming.trim().split(/\s+/).filter(Boolean);
   if (!finalWords.length) return interimWords.join(' ');
   if (!interimWords.length) return finalWords.join(' ');
 
@@ -75,35 +75,8 @@ function splitIntoSentences(text: string): string[] {
   return chunks;
 }
 
-function speakChunk(chunk: string): Promise<void> {
-  console.log('[VOICE] speakChunk start, chunk length:', chunk.length);
-  return new Promise((resolve) => {
-    Promise.resolve(speak(chunk)).then(() => {
-      console.log('[VOICE] speakChunk: speak() resolved, subscribing to TTS');
-      let resolved = false;
-      const unsub = subscribeToTTS((status, err) => {
-        console.log('[VOICE] speakChunk TTS event: state=', status, 'error=', err);
-        if (resolved) return;
-        if (status === 'idle' || status === 'error') {
-          resolved = true;
-          unsub();
-          console.log('[VOICE] speakChunk: resolving via subscription, state:', status);
-          resolve();
-        }
-      });
-      const cur = getTTSState().state;
-      console.log('[VOICE] speakChunk: current TTS state after subscribe:', cur);
-      if (cur === 'idle' || cur === 'error') {
-        resolved = true;
-        unsub();
-        console.log('[VOICE] speakChunk: resolving immediately, state:', cur);
-        resolve();
-      }
-    }, (err) => {
-      console.error('[VOICE] speakChunk: speak() rejected:', err);
-      resolve();
-    });
-  });
+async function speakChunk(chunk: string, sessionId: number, chunkNumber: number) {
+  return speak(chunk, { owner: 'voice', sessionId, chunk: chunkNumber });
 }
 
 export default function VoiceMode({ chatId, modelId, onClose }: Props) {
@@ -149,7 +122,7 @@ export default function VoiceMode({ chatId, modelId, onClose }: Props) {
   const { stream } = useAudioStream({ sampleRate: 16000, channels: 1, encoding: 'int16' });
 
   const getCombinedTranscript = useCallback(
-    () => combineTranscriptSegments(finalTranscriptRef.current, interimTranscriptRef.current),
+    () => mergeTranscriptSegments(finalTranscriptRef.current, interimTranscriptRef.current),
     [],
   );
 
@@ -334,7 +307,7 @@ export default function VoiceMode({ chatId, modelId, onClose }: Props) {
         if (msg.is_final) {
           diagnostics.finalResults++;
           if (text) {
-            finalTranscriptRef.current = (finalTranscriptRef.current + text + ' ').trim();
+            finalTranscriptRef.current = mergeTranscriptSegments(finalTranscriptRef.current, text);
             setTranscript(finalTranscriptRef.current);
             setInterimText('');
             interimTranscriptRef.current = '';
@@ -478,6 +451,7 @@ export default function VoiceMode({ chatId, modelId, onClose }: Props) {
       await pauseStreamForSpeech();
 
       const chunks = splitIntoSentences(replyText);
+      const voiceTtsSession = diagnosticsRef.current.session;
       console.log('[TTS-DEBUG] Chunks total:', chunks.length);
       let spokenText = '';
       for (let ci = 0; ci < chunks.length; ci++) {
@@ -487,7 +461,8 @@ export default function VoiceMode({ chatId, modelId, onClose }: Props) {
           console.log('[TTS-DEBUG] Chunk ' + (ci + 1) + ' SKIPPED: cancelled=' + cancelledRef.current + ' stateRef=' + stateRef.current);
           break;
         }
-        await speakChunk(chunk);
+        const playback = await speakChunk(chunk, voiceTtsSession, ci + 1);
+        if (!playback.completed) break;
         spokenText += chunk + ' ';
         setTranscript(spokenText.trim());
         console.log('[TTS-DEBUG] Chunk ' + (ci + 1) + '/' + chunks.length + ' finished playing');
@@ -508,7 +483,7 @@ export default function VoiceMode({ chatId, modelId, onClose }: Props) {
     console.log('[TTS-DEBUG] Barge-in triggered during speaking=' + wasSpeaking + ' state=' + stateRef.current);
     cancelledRef.current = true;
     stateRef.current = 'listening';
-    stopTTS();
+    stopTTSForOwner('voice', 'barge-in');
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     wsRef.current?.close();
     wsRef.current = null;
@@ -546,7 +521,7 @@ export default function VoiceMode({ chatId, modelId, onClose }: Props) {
       clearTimeout(timer);
       cancelledRef.current = true;
       streamReleasedRef.current = true;
-      stopTTS();
+      stopTTSForOwner('voice', 'unmount');
       wsRef.current?.close();
       wsRef.current = null;
       if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
@@ -617,7 +592,7 @@ export default function VoiceMode({ chatId, modelId, onClose }: Props) {
       })).then(() => {}, () => {});
     }
 
-    stopTTS();
+    stopTTSForOwner('voice', 'end-call');
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     wsRef.current?.close();
     wsRef.current = null;
@@ -627,7 +602,7 @@ export default function VoiceMode({ chatId, modelId, onClose }: Props) {
     Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => onClose());
   }
 
-  const displayText = combineTranscriptSegments(transcript, interimText);
+  const displayText = mergeTranscriptSegments(transcript, interimText);
 
   const orbColor = state === 'listening' ? colors.accent
     : state === 'processing' ? (colors.textMuted)
