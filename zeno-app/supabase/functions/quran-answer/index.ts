@@ -577,6 +577,149 @@ function extractKeywords(question: string): string[] {
     .filter((w) => w.length > 2 && !stopwords.has(w));
 }
 
+type DuaResult = {
+  id: number;
+  category: string;
+  title: string;
+  arabic: string;
+  transliteration: string;
+  translation: string;
+  source: string;
+  repeat: number | null;
+};
+
+// A dua request must never fall through to the general LLM pipeline. The
+// wording users may recite is returned only from UmmahAPI's verified records.
+function isDuaQuestion(question: string): boolean {
+  return /\bdu[’']?a(?:s)?\b|\bsupplication(?:s)?\b/i.test(question);
+}
+
+function extractDuaSearchTerms(question: string): string[] {
+  const lower = question.toLowerCase();
+  const terms = new Set<string>();
+
+  // UmmahAPI's literal "sad" search is empty, so route common user language to
+  // its real distress/grief records rather than asking an LLM to fill the gap.
+  if (/\bsad(?:ness)?\b|\bgrie[fv]\b|\bloss\b/.test(lower)) {
+    terms.add('grief');
+    terms.add('anxiety');
+  }
+  if (/\banxious|\banxiety|\bworried|\bworry|\bdistress\b/.test(lower)) {
+    terms.add('grief');
+    terms.add('anxiety');
+    terms.add('distress');
+  }
+  if (/\beat(?:ing)?\b|\bfood\b|\bdrink(?:ing)?\b/.test(lower)) {
+    terms.add('eating');
+  }
+  if (/\bforgiv(?:e|eness)|\bistighfar|\brepent(?:ance)?\b/.test(lower)) {
+    terms.add('forgiveness');
+  }
+
+  for (const keyword of extractKeywords(question)) {
+    if (!['dua', 'duas', 'supplication', 'supplications'].includes(keyword)) {
+      terms.add(keyword);
+    }
+  }
+  return [...terms].slice(0, 5);
+}
+
+async function searchDuas(
+  question: string,
+  headers: Record<string, string>,
+): Promise<DuaResult[]> {
+  const terms = extractDuaSearchTerms(question);
+  if (terms.length === 0) return [];
+
+  try {
+    const batches = await Promise.all(terms.map(async (term) => {
+      const params = new URLSearchParams({ q: term });
+      const res = await fetch(`${UMMAH_BASE}/api/duas/search?${params}`, { headers });
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.data?.results)) return [];
+      return data.data.results as Record<string, unknown>[];
+    }));
+
+    const seen = new Set<number>();
+    const duas: DuaResult[] = [];
+    for (const dua of batches.flat()) {
+      const id = Number(dua.id);
+      if (!Number.isInteger(id) || seen.has(id)) continue;
+      // Do not expose a partially populated record as a recitable dua.
+      if (typeof dua.arabic !== 'string' || typeof dua.translation !== 'string' || typeof dua.source !== 'string') continue;
+      seen.add(id);
+      duas.push({
+        id,
+        category: typeof dua.category === 'string' ? dua.category : '',
+        title: typeof dua.title === 'string' ? dua.title : 'Verified Dua',
+        arabic: dua.arabic,
+        transliteration: typeof dua.transliteration === 'string' ? dua.transliteration : '',
+        translation: dua.translation,
+        source: dua.source,
+        repeat: typeof dua.repeat === 'number' ? dua.repeat : null,
+      });
+    }
+    const lowerQuestion = question.toLowerCase();
+    const isEatingBefore = /\bbefore\s+(?:eat|eating|food)/.test(lowerQuestion);
+    const isSadness = /\bsad(?:ness)?\b|\bgrie[fv]\b/.test(lowerQuestion);
+    const isAnxiety = /\banxious|\banxiety|\bworried|\bworry/.test(lowerQuestion);
+    const isLossSpecific = /\bdeath|\bdeceased|\bgraveside|\bloss\b|\bcalamity\b/.test(lowerQuestion);
+
+    // Avoid presenting a valid but contextually unsuitable recitation (such as
+    // a dua for the deceased) for a broad sadness request.
+    let relevant = duas;
+    if (isEatingBefore) {
+      relevant = relevant.filter((dua) => /before eating/i.test(dua.title));
+    }
+    if (isSadness && !isLossSpecific) {
+      relevant = relevant.filter((dua) => !/deceased|graveside/i.test(dua.title));
+    }
+
+    const relevanceScore = (dua: DuaResult): number => {
+      const title = dua.title.toLowerCase();
+      let score = 0;
+      if (isEatingBefore && /before eating/.test(title)) score += 100;
+      if (isAnxiety && /anxious|worried/.test(title)) score += 100;
+      if ((isAnxiety || isSadness) && /distress/.test(title)) score += 70;
+      if (isSadness && /calamity|patience/.test(title)) score += 50;
+      return score;
+    };
+    return relevant.sort((a, b) => relevanceScore(b) - relevanceScore(a)).slice(0, 3);
+  } catch (err) {
+    console.log(`[Quran-Answer] dua search error: ${String(err)}`);
+    return [];
+  }
+}
+
+function buildDuaResponse(question: string, duas: DuaResult[]): object {
+  if (duas.length === 0) {
+    return {
+      answer: 'No verified dua was found in the available source for this topic. To avoid presenting unverified wording, no dua text is shown. Please consult a qualified scholar or a reliable dua collection.',
+      error: null,
+      noResults: false,
+      isDuaResponse: true,
+      duas: [],
+      quranVerses: [],
+      hadiths: [],
+      tafsir: null,
+      confidence: 'red',
+    };
+  }
+
+  return {
+    answer: `Verified dua${duas.length > 1 ? 's' : ''} for “${question}”. The Arabic, transliteration, translation, and source below are retrieved directly from UmmahAPI; no dua wording was generated by an LLM.`,
+    error: null,
+    noResults: false,
+    isDuaResponse: true,
+    duas,
+    quranVerses: [],
+    hadiths: [],
+    tafsir: null,
+    confidence: 'green',
+  };
+}
+
 // Fetch Quran search results for a single query term, return normalized objects
 async function searchQuran(
   term: string,
@@ -723,6 +866,18 @@ Deno.serve(async (req) => {
     if (ummahApiKey) apiHeaders['x-api-key'] = ummahApiKey;
 
     const tr = translation || 'sahih_international';
+
+    // === DUA DETECTION (short-circuits before generic retrieval/LLM) ===
+    // Recitable religious wording must only ever come from a real source.
+    if (isDuaQuestion(question)) {
+      const duaTerms = extractDuaSearchTerms(question);
+      console.log(`[Quran-Answer] dua query detected; retrieving UmmahAPI duas for="${duaTerms.join(', ')}"`);
+      const duas = await searchDuas(question, apiHeaders);
+      console.log(`[Quran-Answer] verified dua results: ${duas.length}; NVIDIA not called`);
+      return new Response(JSON.stringify(buildDuaResponse(question, duas)), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     // Start semantic search in parallel (but we'll filter by similarity threshold)
     const semanticPromise = semanticSearch(question, 8, token);
