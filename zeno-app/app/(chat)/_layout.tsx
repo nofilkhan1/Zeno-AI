@@ -35,6 +35,7 @@ export default function ChatLayout() {
   return (
     <Stack screenOptions={{
       headerStyle: { backgroundColor: colors.bg },
+      contentStyle: { backgroundColor: colors.bg },
       headerTintColor: colors.textPrimary,
       headerShadowVisible: false,
       headerTitleStyle: { fontFamily: 'Inter_500Medium', fontSize: 16 },
@@ -46,6 +47,7 @@ export default function ChatLayout() {
       <Stack.Screen name="quiz" options={{ title: 'Quran Quiz', headerBackTitle: 'Back' }} />
       <Stack.Screen name="today" options={{ title: 'Today', headerBackTitle: 'Back' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings', headerBackTitle: 'Back' }} />
+      <Stack.Screen name="guide" options={{ title: 'Help & Guide', headerBackTitle: 'Back' }} />
     </Stack>
   );
 }
