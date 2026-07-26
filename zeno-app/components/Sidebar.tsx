@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, Animated, Easing, StyleSheet, ActivityIndicator, TextInput, Pressable, useColorScheme } from 'react-native';
 import ActionDialog from './ActionDialog';
-import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal, BookOpen, BookMarked, BarChart3, Sparkles, Settings } from 'lucide-react-native';
+import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal, BookOpen, Sparkles, Settings } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Chat } from '../lib/types';
@@ -175,7 +175,14 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
             ) : (
               <>
                 <Text style={[t.captionMedium, s.sectionLabel, { color: colors.textMuted }]}>RECENT CHATS</Text>
-                <FlatList data={chats} keyExtractor={(item) => item.id} contentContainerStyle={s.chatList} keyboardShouldPersistTaps="handled" renderItem={({ item }) => renderChatItem(item)} />
+                {chats.length === 0 ? (
+                  <View style={s.emptyChats}>
+                    <MessageSquare size={16} color={colors.textMuted} />
+                    <Text style={[t.caption, { color: colors.textMuted }]}>No conversations yet</Text>
+                  </View>
+                ) : (
+                  <FlatList data={chats} keyExtractor={(item) => item.id} contentContainerStyle={s.chatList} keyboardShouldPersistTaps="handled" renderItem={({ item }) => renderChatItem(item)} />
+                )}
               </>
             )}
 
@@ -189,22 +196,10 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
                 <Text style={[t.body, { color: colors.accent }]}>Quran GPT</Text>
               </Pressable>
 
-              <Pressable
-                style={({ pressed }) => [s.quranButton, pressed && { opacity: 0.7 }]}
-                onPress={() => router.push('/hifz')}
-              >
-                <BookMarked size={18} color={colors.accent} />
-                <Text style={[t.body, { color: colors.accent }]}>Hifz</Text>
-              </Pressable>
+            </View>
 
-              <Pressable
-                style={({ pressed }) => [s.quranButton, pressed && { opacity: 0.7 }]}
-                onPress={() => router.push('/quiz')}
-              >
-                <BarChart3 size={18} color={colors.accent} />
-                <Text style={[t.body, { color: colors.accent }]}>Quiz</Text>
-              </Pressable>
-
+            <View style={[s.dailySection, { borderTopColor: colors.composerBorder }]}>
+              <Text style={[t.captionMedium, s.sectionLabel, { color: colors.textMuted }]}>DAILY</Text>
               <Pressable
                 style={({ pressed }) => [s.quranButton, pressed && { opacity: 0.7 }]}
                 onPress={() => router.push('/today')}
@@ -268,12 +263,14 @@ const s = StyleSheet.create({
   newChatButton: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, paddingVertical: 12, paddingHorizontal: 16, borderRadius: radii.sm, borderWidth: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   chatList: { paddingBottom: 8 },
+  emptyChats: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, paddingBottom: 12 },
   sectionLabel: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, letterSpacing: 0.7 },
   chatItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, marginHorizontal: 8, borderRadius: radii.sm },
   chatItemContent: { flex: 1 },
   renameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   renameInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', fontSize: 16, paddingVertical: 8, paddingHorizontal: 12, borderRadius: radii.sm, borderWidth: 1, fontFamily: 'Inter_400Regular' },
   learningSection: { borderTopWidth: 1, paddingTop: 8 },
+  dailySection: { borderTopWidth: 1, paddingTop: 8 },
   quranButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16 },
   utilitySection: { borderTopWidth: 1, paddingTop: 8 },
   utilityButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16 },
