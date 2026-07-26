@@ -86,6 +86,17 @@ type TafsirResponse = {
   text: string;
 };
 
+type DuaResult = {
+  id: number;
+  category: string;
+  title: string;
+  arabic: string;
+  transliteration: string;
+  translation: string;
+  source: string;
+  repeat: number | null;
+};
+
 type ConfidenceLevel = 'green' | 'yellow' | 'orange' | 'red';
 
 const TAFSIR_SOURCES = [
@@ -128,6 +139,9 @@ function isQuestion(input: string): boolean {
   const trimmed = input.trim();
   if (/^\d+\s*[:.]\s*\d+$/.test(trimmed)) return false;
   const lower = trimmed.toLowerCase();
+  // Short requests such as "dua when sad" must reach quran-answer rather
+  // than being misclassified as a Quran keyword search.
+  if (/\bdu[’']?a(?:s)?\b|\bsupplication(?:s)?\b/i.test(trimmed)) return true;
   const questionStarts = ['what', 'why', 'how', 'does', 'do', 'is', 'are', 'can', 'should', 'would', 'could', 'tell', 'explain'];
   const startsWithQW = questionStarts.some((w) => lower.startsWith(w));
   if (startsWithQW) return true;
@@ -335,6 +349,7 @@ export default function QuranScreen() {
   const [answerQuranVerses, setAnswerQuranVerses] = useState<SearchResult[]>([]);
   const [answerHadiths, setAnswerHadiths] = useState<HadithResult[]>([]);
   const [answerTafsir, setAnswerTafsir] = useState<TafsirResponse | null>(null);
+  const [answerDuas, setAnswerDuas] = useState<DuaResult[]>([]);
   const [noResults, setNoResults] = useState(false);
 
   const [hadithResults, setHadithResults] = useState<HadithResult[] | null>(null);
@@ -354,6 +369,7 @@ export default function QuranScreen() {
     setAnswerQuranVerses([]);
     setAnswerHadiths([]);
     setAnswerTafsir(null);
+    setAnswerDuas([]);
     setTafsir(null);
     setTafsirExpanded(false);
     setTafsirError(null);
@@ -512,6 +528,7 @@ export default function QuranScreen() {
             setAnswerQuranVerses(data.quranVerses || []);
             setAnswerHadiths(data.hadiths || []);
             setAnswerTafsir(data.tafsir || null);
+            setAnswerDuas(data.duas || []);
             if (data.error && !data.answer) {
               setAnswer(null);
               setError(data.error);
@@ -546,6 +563,7 @@ export default function QuranScreen() {
             setAnswerQuranVerses(data.quranVerses || []);
             setAnswerHadiths(data.hadiths || []);
             setAnswerTafsir(data.tafsir || null);
+            setAnswerDuas(data.duas || []);
             if (data.error && !data.answer) {
               setAnswer(null);
               setError(data.error);
@@ -1165,7 +1183,7 @@ export default function QuranScreen() {
           </View>
         )}
 
-        {mode === 'quran' && (answerQuranVerses.length > 0 || answerHadiths.length > 0) ? (
+        {mode === 'quran' && (answer || answerQuranVerses.length > 0 || answerHadiths.length > 0 || answerDuas.length > 0) ? (
           <>
             {answer && confidenceMeta && (
               <>
@@ -1224,6 +1242,29 @@ export default function QuranScreen() {
                     {h.arabic && (
                       <Text style={[s.arabicText, { color: colors.textPrimary, marginTop: 12 }]}>{h.arabic}</Text>
                     )}
+                  </View>
+                ))}
+              </>
+            )}
+
+            {answerDuas.length > 0 && (
+              <>
+                <Text style={[t.captionMedium, { color: colors.accent, marginTop: 16, marginBottom: 8, paddingHorizontal: 4 }]}>
+                  Verified Duas
+                </Text>
+                {answerDuas.map((dua) => (
+                  <View key={dua.id} style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
+                    <Text style={[t.captionMedium, { color: colors.accent, marginBottom: 8 }]}>{dua.title}</Text>
+                    <Text style={[s.arabicText, { color: colors.textPrimary }]}>{dua.arabic}</Text>
+                    {dua.transliteration ? (
+                      <Text style={[t.caption, { color: colors.textMuted, marginTop: 10, lineHeight: 20 }]}>{dua.transliteration}</Text>
+                    ) : null}
+                    <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
+                    <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22 }]}>{dua.translation}</Text>
+                    <Text style={[t.captionMedium, { color: colors.textMuted, marginTop: 10 }]}>Source: {dua.source}</Text>
+                    {dua.repeat ? (
+                      <Text style={[t.caption, { color: colors.textMuted, marginTop: 3 }]}>Repeat: {dua.repeat}</Text>
+                    ) : null}
                   </View>
                 ))}
               </>
