@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, ActivityIndicator, useColorScheme, Keyboard, BackHandler } from 'react-native';
-import { ArrowLeft, Search, BookOpen, AlertCircle, HelpCircle, Volume2, Library, Hash, BookMarked, BarChart3, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Search, BookOpen, AlertCircle, HelpCircle, Volume2, Library, Hash, BookMarked, BarChart3, Sparkles } from 'lucide-react-native';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
@@ -637,7 +637,7 @@ export default function QuranScreen() {
         <Stack.Screen options={{ headerLeft: undefined }} />
         <ScrollView contentContainerStyle={s.hubContent} showsVerticalScrollIndicator={false}>
           <Text style={[t.body, s.hubIntro, { color: colors.textMuted }]}>Choose a Quran and learning tool to begin.</Text>
-          <View style={s.hubGrid}>
+          <View style={s.hubActions}>
             {hubTools.map((tool) => (
               <Pressable
                 key={tool.title}
@@ -647,8 +647,11 @@ export default function QuranScreen() {
                 onPress={tool.onPress}
               >
                 <View style={[s.hubIcon, { backgroundColor: colors.overlaySubtle }]}>{tool.icon}</View>
-                <Text style={[t.bodyMedium, s.hubCardTitle, { color: colors.textPrimary }]}>{tool.title}</Text>
-                <Text style={[t.caption, s.hubCardDescription, { color: colors.textMuted }]}>{tool.description}</Text>
+                <View style={s.hubCardContent}>
+                  <Text style={[t.bodyMedium, s.hubCardTitle, { color: colors.textPrimary }]}>{tool.title}</Text>
+                  <Text style={[t.caption, s.hubCardDescription, { color: colors.textMuted }]} numberOfLines={2}>{tool.description}</Text>
+                </View>
+                <ChevronRight size={20} color={colors.textMuted} />
               </Pressable>
             ))}
           </View>
@@ -1353,10 +1356,11 @@ const s = StyleSheet.create({
   hubContainer: { flex: 1 },
   hubContent: { padding: 16, paddingBottom: 24 },
   hubIntro: { marginBottom: 14 },
-  hubGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  hubCard: { width: '48.5%', minHeight: 132, borderWidth: 1, borderRadius: radii.md, padding: 14 },
-  hubIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  hubCardTitle: { marginBottom: 4, lineHeight: 20 },
+  hubActions: { gap: 10 },
+  hubCard: { width: '100%', minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: radii.md, paddingHorizontal: 14, paddingVertical: 12 },
+  hubIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  hubCardContent: { flex: 1 },
+  hubCardTitle: { marginBottom: 2, lineHeight: 20 },
   hubCardDescription: { lineHeight: 17 },
   headerBackButton: { minWidth: 44, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingRight: 8 },
   modeRow: {
