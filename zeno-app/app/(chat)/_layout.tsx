@@ -44,6 +44,7 @@ export default function ChatLayout() {
       <Stack.Screen name="quran" options={{ title: 'Quran GPT', headerBackTitle: 'Back' }} />
       <Stack.Screen name="hifz" options={{ title: 'Hifz (Memorization)', headerBackTitle: 'Back' }} />
       <Stack.Screen name="quiz" options={{ title: 'Quran Quiz', headerBackTitle: 'Back' }} />
+      <Stack.Screen name="today" options={{ title: 'Today', headerBackTitle: 'Back' }} />
     </Stack>
   );
 }
