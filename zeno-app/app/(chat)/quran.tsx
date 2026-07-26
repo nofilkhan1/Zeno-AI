@@ -622,6 +622,7 @@ export default function QuranScreen() {
   const currentLangLabel = SEARCH_LANGUAGES.find((l) => l.key === language)?.label || 'English (Sahih)';
   const confidenceMeta = answerConfidence ? CONFIDENCE_META[answerConfidence] : null;
   const currentCollectionLabel = HADITH_COLLECTIONS.find((c) => c.key === hadithCollection)?.label || 'All Collections';
+  const workspaceTitle = mode === 'hadith' ? 'Hadith Search' : quranWorkspaceIntent === 'lookup' ? 'Search Quran' : 'Ask Quran';
 
   if (workspace === 'hub') {
     const hubTools = [
@@ -662,10 +663,10 @@ export default function QuranScreen() {
 
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
-      <Stack.Screen options={{ headerLeft: () => (
+      <Stack.Screen options={{ title: workspaceTitle, headerLeft: () => (
         <Pressable accessibilityRole="button" accessibilityLabel="All tools" style={s.headerBackButton} onPress={returnToHub}>
           <ArrowLeft size={22} color={colors.textPrimary} />
-          <Text style={[t.captionMedium, { color: colors.textPrimary }]}>All tools</Text>
+          <Text style={[t.captionMedium, { color: colors.textPrimary }]}>Tools</Text>
         </Pressable>
       ) }} />
       {/* ── Mode switcher ── */}
@@ -697,12 +698,14 @@ export default function QuranScreen() {
         )}
         <TextInput
           style={[s.input, { color: colors.textPrimary }]}
-          placeholder={mode === 'hadith' ? "Search hadith (e.g. patience, charity)..." : quranWorkspaceIntent === 'lookup' ? "Verse (2:255) or search the Quran..." : "Ask about the Quran..."}
+          placeholder={mode === 'hadith' ? "Search hadith by topic…" : quranWorkspaceIntent === 'lookup' ? "Verse (2:255) or search Quran…" : "Ask about the Quran…"}
           placeholderTextColor={colors.textMuted}
           value={input}
           onChangeText={setInput}
           onSubmitEditing={handleSubmit}
           returnKeyType="search"
+          multiline={false}
+          numberOfLines={1}
         />
       </View>
 
@@ -1373,9 +1376,9 @@ const s = StyleSheet.create({
   },
   inputRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderRadius: radii.sm, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12,
+    minHeight: 52, borderRadius: radii.sm, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8,
   },
-  input: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 16 },
+  input: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 16, lineHeight: 20, paddingVertical: 0, textAlignVertical: 'center' },
   langRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 },
   langButton: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
