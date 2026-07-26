@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { Slot, useRouter } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { View, ActivityIndicator, StatusBar, useColorScheme } from 'react-native';
+import { View, ActivityIndicator, StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
-import { ThemeProvider } from '../lib/theme';
+import { ThemeProvider, useThemeMode } from '../lib/theme';
 import { addNotificationResponseListener } from '../lib/notifications';
 
 export type AuthContextType = { session: Session | null };
@@ -26,37 +26,51 @@ export function useAuth() {
 
 export default function RootLayout() {
   const { loading } = useAuth();
-  const scheme = useColorScheme();
-  const router = useRouter();
   const [fontsLoaded, fontsError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_700Bold });
   const fontsReady = fontsLoaded || !!fontsError;
 
+  return (
+    <ThemeProvider>
+      <RootLayoutContent loading={loading} fontsReady={fontsReady} />
+    </ThemeProvider>
+  );
+}
+
+function RootLayoutContent({ loading, fontsReady }: { loading: boolean; fontsReady: boolean }) {
+  const router = useRouter();
+  const { colors, resolved } = useThemeMode();
+
   useEffect(() => {
-    const sub = addNotificationResponseListener((response) => {
+    let disposed = false;
+    let sub: { remove: () => void } | null = null;
+
+    void addNotificationResponseListener((response) => {
       const data = response.notification.request.content.data;
-      if (data?.type === 'daily_notification') {
-        router.push('/(chat)/today');
-      }
+      if (data?.type === 'daily_notification') router.push('/(chat)/today');
+    }).then((listener) => {
+      if (disposed) listener.remove();
+      else sub = listener;
     });
-    return () => sub.remove();
-  }, []);
+
+    return () => {
+      disposed = true;
+      sub?.remove();
+    };
+  }, [router]);
 
   if (!fontsReady || loading) {
-    const bg = scheme === 'dark' ? '#2D2B28' : '#F5F4EF';
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: bg }}>
-        <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={bg} />
-        <ActivityIndicator size="large" color="#D97757" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg }}>
+        <StatusBar barStyle={resolved === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
 
   return (
-    <ThemeProvider>
-      <SafeAreaProvider>
-        <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} />
-        <Slot />
-      </SafeAreaProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <StatusBar barStyle={resolved === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
+      <Slot />
+    </SafeAreaProvider>
   );
 }
