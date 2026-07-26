@@ -99,6 +99,9 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0.3)).current;
 
+  // Audio stream is declared before callbacks that manage its lifecycle.
+  const { stream } = useAudioStream({ sampleRate: 16000, channels: 1, encoding: 'int16' });
+
   // ── Centralized stream lifecycle management (single point of control) ──
   const safeStopStream = useCallback((reason: string) => {
     if (!stream || streamReleasedRef.current) {
@@ -140,8 +143,6 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   }, [safeStartStream]);
 
   // ── Audio stream (always active in voice mode) ──────────────
-  const { stream } = useAudioStream({ sampleRate: 16000, channels: 1, encoding: 'int16' });
-
   const mutedRef = useRef(false);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
 
