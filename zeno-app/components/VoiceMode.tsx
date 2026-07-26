@@ -22,8 +22,43 @@ type Props = {
   onClose: () => void;
 };
 
+type VoiceDiagnostics = {
+  session: number;
+  buffersSent: number;
+  totalBytesSent: number;
+  interimResults: number;
+  finalResults: number;
+  lastCadenceLogAt: number;
+};
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ORB_SIZE = Math.min(SCREEN_WIDTH * 0.55, 200);
+
+function logVoiceDiagnostic(event: string, details: Record<string, boolean | number | string> = {}) {
+  console.log('[VOICE-DIAG]', event, details);
+}
+
+function combineTranscriptSegments(finalized: string, interim: string): string {
+  const finalWords = finalized.trim().split(/\s+/).filter(Boolean);
+  const interimWords = interim.trim().split(/\s+/).filter(Boolean);
+  if (!finalWords.length) return interimWords.join(' ');
+  if (!interimWords.length) return finalWords.join(' ');
+
+  const comparable = (word: string) => word.replace(/[^\p{L}\p{N}']/gu, '').toLocaleLowerCase();
+  const maxOverlap = Math.min(finalWords.length, interimWords.length);
+  let overlap = 0;
+
+  for (let count = maxOverlap; count > 0; count--) {
+    const finalTail = finalWords.slice(-count).map(comparable);
+    const interimHead = interimWords.slice(0, count).map(comparable);
+    if (finalTail.every((word, index) => word === interimHead[index])) {
+      overlap = count;
+      break;
+    }
+  }
+
+  return [...finalWords, ...interimWords.slice(overlap)].join(' ');
+}
 
 function splitIntoSentences(text: string): string[] {
   const parts = text.split(/(?<=[.!?])\s+/);
@@ -41,7 +76,7 @@ function splitIntoSentences(text: string): string[] {
 }
 
 function speakChunk(chunk: string): Promise<void> {
-  console.log('[VOICE] speakChunk start, chunk length:', chunk.length, 'text:', chunk.slice(0, 40));
+  console.log('[VOICE] speakChunk start, chunk length:', chunk.length);
   return new Promise((resolve) => {
     Promise.resolve(speak(chunk)).then(() => {
       console.log('[VOICE] speakChunk: speak() resolved, subscribing to TTS');
@@ -87,11 +122,21 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const streamPausedForSpeechRef = useRef(false);
   const streamReleasedRef = useRef(false);
   const finalTranscriptRef = useRef('');
+  const interimTranscriptRef = useRef('');
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vadCountRef = useRef(0);
   const stateRef = useRef<VoiceState>('listening');
   const handleUtteranceEndRef = useRef<() => void>(() => {});
   const startListeningRef = useRef<() => void>(() => {});
+  const submitReasonRef = useRef<'confirm' | 'silence-fallback' | 'existing-flow'>('existing-flow');
+  const diagnosticsRef = useRef<VoiceDiagnostics>({
+    session: 0,
+    buffersSent: 0,
+    totalBytesSent: 0,
+    interimResults: 0,
+    finalResults: 0,
+    lastCadenceLogAt: 0,
+  });
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const thinkingAnim = useRef(new Animated.Value(0)).current;
@@ -101,6 +146,11 @@ export default function VoiceMode({ chatId, onClose }: Props) {
 
   // Audio stream is declared before callbacks that manage its lifecycle.
   const { stream } = useAudioStream({ sampleRate: 16000, channels: 1, encoding: 'int16' });
+
+  const getCombinedTranscript = useCallback(
+    () => combineTranscriptSegments(finalTranscriptRef.current, interimTranscriptRef.current),
+    [],
+  );
 
   // ── Centralized stream lifecycle management (single point of control) ──
   const safeStopStream = useCallback((reason: string) => {
@@ -174,6 +224,18 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       if (st === 'listening') {
         const ws = wsRef.current;
         if (ws && ws.readyState === WebSocket.OPEN) {
+          const diagnostics = diagnosticsRef.current;
+          diagnostics.buffersSent++;
+          diagnostics.totalBytesSent += buffer.data.byteLength;
+          const now = Date.now();
+          if (now - diagnostics.lastCadenceLogAt >= 1000) {
+            diagnostics.lastCadenceLogAt = now;
+            logVoiceDiagnostic('audio-cadence', {
+              session: diagnostics.session,
+              buffersSent: diagnostics.buffersSent,
+              totalBytesSent: diagnostics.totalBytesSent,
+            });
+          }
           ws.send(buffer.data);
         }
       } else if (st === 'speaking' || st === 'processing') {
@@ -200,10 +262,19 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const startListening = useCallback(async () => {
     if (cancelledRef.current) return;
     if (wsRef.current) return;
+    const diagnostics = diagnosticsRef.current;
+    diagnostics.session++;
+    diagnostics.buffersSent = 0;
+    diagnostics.totalBytesSent = 0;
+    diagnostics.interimResults = 0;
+    diagnostics.finalResults = 0;
+    diagnostics.lastCadenceLogAt = 0;
+    logVoiceDiagnostic('listening-session-start', { session: diagnostics.session });
     setTranscript('');
     setInterimText('');
     setErrorMsg('');
     finalTranscriptRef.current = '';
+    interimTranscriptRef.current = '';
     setState('listening');
     setConnectionStatus('connecting');
 
@@ -217,9 +288,9 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       // Use longer timeout now that we have ✓/✗ buttons — silence is backup only
       silenceTimerRef.current = setTimeout(() => {
         silenceTimerRef.current = null;
-        const text = finalTranscriptRef.current.trim();
+        const text = getCombinedTranscript();
         if (text) {
-          console.log('[VOICE] Backup silence timeout, submitting:', text);
+          submitReasonRef.current = 'silence-fallback';
           handleUtteranceEndRef.current();
         }
       }, 6000);
@@ -230,7 +301,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('[VOICE] WS open');
+      logVoiceDiagnostic('ws-open', { session: diagnosticsRef.current.session });
       if (!cancelledRef.current) setConnectionStatus('connected');
     };
 
@@ -243,20 +314,44 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       try {
         const msg = JSON.parse(raw);
         if (msg.type === '_proxy_status') return;
-        if (msg.type !== 'Results') return;
+        if (msg.type !== 'Results') {
+          if (msg.type === 'UtteranceEnd') {
+            logVoiceDiagnostic('deepgram-utterance-end', {
+              session: diagnosticsRef.current.session,
+              utteranceFinal: true,
+            });
+          }
+          return;
+        }
 
         const alt = msg.channel?.alternatives?.[0];
         const text = alt?.transcript || '';
+        const diagnostics = diagnosticsRef.current;
+        const endpointFinal = msg.speech_final === true;
 
         if (msg.is_final) {
+          diagnostics.finalResults++;
           finalTranscriptRef.current = text
             ? (finalTranscriptRef.current + text + ' ').trim()
             : finalTranscriptRef.current;
           setTranscript(finalTranscriptRef.current);
           setInterimText('');
+          interimTranscriptRef.current = '';
         } else {
+          diagnostics.interimResults++;
           setInterimText(text);
+          interimTranscriptRef.current = text;
         }
+
+        logVoiceDiagnostic('deepgram-result', {
+          session: diagnostics.session,
+          interimResults: diagnostics.interimResults,
+          finalResults: diagnostics.finalResults,
+          isFinal: msg.is_final === true,
+          endpointFinal,
+          utteranceFinal: msg.from_finalize === true,
+          transcriptChars: text.length,
+        });
 
         resetSilenceTimer();
       } catch {}
@@ -265,27 +360,34 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     ws.onerror = (e) => {
       if (!cancelledRef.current) {
         const msg = (e as any).message || JSON.stringify(e) || 'unknown';
-        console.warn('[VOICE] WS error:', msg);
+        logVoiceDiagnostic('ws-error', { messageLength: String(msg).length });
       }
     };
 
     ws.onclose = (e) => {
-      console.log('[VOICE] WS closed: code=' + e.code + ' reason=' + e.reason + ' wasClean=' + e.wasClean);
+      logVoiceDiagnostic('ws-close', {
+        session: diagnosticsRef.current.session,
+        code: e.code,
+        reasonLength: e.reason.length,
+        wasClean: e.wasClean,
+      });
     };
-  }, []);
+  }, [getCombinedTranscript, resumeStreamForListening]);
 
   // ── Explicit confirm (✓): submit utterance ─────────────────
   const handleConfirm = useCallback(() => {
-    const text = finalTranscriptRef.current.trim();
+    const text = getCombinedTranscript();
     if (!text) return;
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    submitReasonRef.current = 'confirm';
     handleUtteranceEndRef.current();
-  }, []);
+  }, [getCombinedTranscript]);
 
   // ── Explicit cancel (✗): discard utterance, stay listening ─
   const handleCancel = useCallback(() => {
     console.log('[VOICE] User cancelled utterance');
     finalTranscriptRef.current = '';
+    interimTranscriptRef.current = '';
     setTranscript('');
     setInterimText('');
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
@@ -295,8 +397,13 @@ export default function VoiceMode({ chatId, onClose }: Props) {
 
   // ── Utterance end → PROCESSING → chat API → SPEAKING (chunked TTS) ──
   const handleUtteranceEnd = useCallback(async () => {
-    const text = finalTranscriptRef.current.trim();
+    const text = getCombinedTranscript();
     if (!text) { startListening(); return; }
+
+    logVoiceDiagnostic('submit', { reason: submitReasonRef.current, transcriptChars: text.length });
+    submitReasonRef.current = 'existing-flow';
+    interimTranscriptRef.current = '';
+    setInterimText('');
 
     setState('processing');
     stateRef.current = 'processing';
@@ -326,7 +433,6 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       const replyText = data.content || '';
       if (!replyText) { startListening(); return; }
 
-      console.log('[TTS-DEBUG] 1. Starting TTS for text:', replyText.slice(0, 50));
       console.log('[TTS-DEBUG] 1. Full response length:', replyText.length, 'chars, chunks:', splitIntoSentences(replyText).length);
 
       setState('speaking');
@@ -359,7 +465,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       let spokenText = '';
       for (let ci = 0; ci < chunks.length; ci++) {
         const chunk = chunks[ci];
-        console.log('[TTS-DEBUG] Chunk ' + (ci + 1) + '/' + chunks.length + ' queued: "' + chunk.slice(0, 60) + '" (len=' + chunk.length + ')');
+        console.log('[TTS-DEBUG] Chunk ' + (ci + 1) + '/' + chunks.length + ' queued (len=' + chunk.length + ')');
         if (cancelledRef.current || stateRef.current !== 'speaking') {
           console.log('[TTS-DEBUG] Chunk ' + (ci + 1) + ' SKIPPED: cancelled=' + cancelledRef.current + ' stateRef=' + stateRef.current);
           break;
@@ -391,6 +497,8 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     wsRef.current = null;
     vadCountRef.current = 0;
     finalTranscriptRef.current = '';
+    interimTranscriptRef.current = '';
+    setInterimText('');
 
     setState('listening');
     cancelledRef.current = false;
@@ -400,7 +508,10 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   }, [startListening]);
 
   // ── Sync refs for callback freshness ──────────────────────
-  useEffect(() => { stateRef.current = state; }, [state]);
+  useEffect(() => {
+    stateRef.current = state;
+    logVoiceDiagnostic('state-transition', { state, session: diagnosticsRef.current.session });
+  }, [state]);
   useEffect(() => { handleUtteranceEndRef.current = handleUtteranceEnd; }, [handleUtteranceEnd]);
   useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
 
@@ -482,7 +593,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     cancelledRef.current = true;
 
     // Save any captured transcript as a user message
-    const pendingText = (finalTranscriptRef.current || transcript).trim();
+    const pendingText = getCombinedTranscript();
     if (pendingText) {
       Promise.resolve(supabase.from('messages').insert({
         chat_id: chatId, role: 'user', content: pendingText, created_at: new Date().toISOString(),
@@ -499,7 +610,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
     Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => onClose());
   }
 
-  const displayText = (transcript || interimText).trim();
+  const displayText = combineTranscriptSegments(transcript, interimText);
 
   const orbColor = state === 'listening' ? colors.accent
     : state === 'processing' ? (colors.textMuted)
