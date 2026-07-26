@@ -4,6 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { BookOpen, Bell, BellOff, Sun, Moon, Star, ChevronRight, Sparkles } from 'lucide-react-native';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
 import { registerForPushNotifications, storePushToken, getNotificationPreferences, setNotificationPreferences, removePushToken } from '../../lib/notifications';
+import QuranAyahText, { formatQuranTranslation, getAyahNumberFromVerseKey } from '../../components/QuranAyahText';
 
 const TODAY_FN = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/send-daily-notification`;
 
@@ -140,9 +141,13 @@ export default function TodayScreen() {
               <Text style={[s.surahLabel, { color: colors.textMuted }]}>
                 {verse.surahName} {verse.verseKey}
               </Text>
-              <Text style={[s.arabicText, { color: colors.textPrimary }]}>{verse.arabic}</Text>
+              <QuranAyahText
+                arabic={verse.arabic}
+                ayah={getAyahNumberFromVerseKey(verse.verseKey)}
+                style={[s.arabicText, { color: colors.textPrimary }]}
+              />
               <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
-              <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22 }]}>{verse.translation}</Text>
+              <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22 }]}>{formatQuranTranslation(verse.translation)}</Text>
             </View>
           )}
 
