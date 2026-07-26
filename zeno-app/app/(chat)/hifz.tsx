@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
 import SURAHS from '../../lib/surahs';
+import QuranAyahText, { formatQuranTranslation, getAyahEndMarker } from '../../components/QuranAyahText';
 
 const LOOKUP_FN = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/quran-lookup`;
 const PROGRESS_FN = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/memorization-progress`;
@@ -279,10 +280,11 @@ export default function HifzScreen() {
               {' ' + hiddenWords.map(() => '██').join(' ')}
             </Text>
           )}
+          {getAyahEndMarker(verseData.arabic, currentAyah)}
         </Text>
       );
     }
-    return <Text style={[s.arabicText, { color: colors.textPrimary }]}>{verseData.arabic}</Text>;
+    return <QuranAyahText arabic={verseData.arabic} ayah={currentAyah} style={[s.arabicText, { color: colors.textPrimary }]} />;
   }
 
   // No surah selected state
@@ -507,7 +509,7 @@ export default function HifzScreen() {
 
             {/* Translation */}
             <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22 }]}>
-              {verseData.translation}
+              {formatQuranTranslation(verseData.translation)}
             </Text>
 
             {/* Progressive hide controls */}
