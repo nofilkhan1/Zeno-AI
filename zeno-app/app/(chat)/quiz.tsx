@@ -140,13 +140,6 @@ export default function QuizScreen() {
   if (screen === 'setup') {
     return (
       <View style={[s.container, { backgroundColor: colors.bg }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <Text style={[t.title, { color: colors.textPrimary }]}>Quran Quiz</Text>
-          <Pressable onPress={() => router.back()}>
-            <Text style={[t.caption, { color: colors.textMuted }]}>Back</Text>
-          </Pressable>
-        </View>
-
         {/* Surah scope */}
         <Text style={[t.captionMedium, { color: colors.textMuted, marginBottom: 6 }]}>Scope</Text>
         <Pressable
