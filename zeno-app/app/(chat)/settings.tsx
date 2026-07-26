@@ -85,7 +85,7 @@ export default function SettingsScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, gap: 16, paddingTop: 24 },
+  content: { padding: 16, gap: 16 },
   card: { borderRadius: radii.md, padding: 16, borderWidth: 1 },
   sectionTitle: { marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 },
