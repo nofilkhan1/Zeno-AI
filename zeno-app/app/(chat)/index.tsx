@@ -165,7 +165,7 @@ export default function ChatListScreen() {
 
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
-      <View style={[s.header, { backgroundColor: colors.bg, paddingTop: insets.top + 10 }]}>
+      <View style={[s.header, { backgroundColor: colors.bg, paddingTop: insets.top + 4 }]}>
         <Pressable style={({ pressed }) => [s.headerBtn, pressed && { opacity: 0.7 }]} onPress={() => setSidebarVisible(true)}>
           <Menu size={24} color={colors.textPrimary} />
         </Pressable>
@@ -331,6 +331,6 @@ const sSettings = StyleSheet.create({
 
 const s = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 },
   headerBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });
