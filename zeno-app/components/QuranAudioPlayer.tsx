@@ -49,8 +49,9 @@ export default function QuranAudioPlayer({ surah, ayah, verseKey, size = 'small'
     return unsub;
   }, []);
 
-  const fetchReciters = useCallback(async () => {
-    if (fetching || reciters.length > 0) return;
+  const fetchReciters = useCallback(async (): Promise<Reciter[]> => {
+    if (fetching) return [];
+    if (reciters.length > 0) return reciters;
     setFetching(true);
     setFetchError(null);
     try {
@@ -69,22 +70,31 @@ export default function QuranAudioPlayer({ surah, ayah, verseKey, size = 'small'
       if (!selectedReciter && valid.length > 0) {
         setSelectedReciter(valid[0]);
       }
+      return valid;
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : 'Failed to load audio');
+      return [];
     } finally {
       setFetching(false);
     }
   }, [surah, ayah, fetching, reciters.length, selectedReciter]);
 
   async function handlePlay() {
+    let reciterToPlay = selectedReciter;
+
     if (reciters.length === 0) {
-      await fetchReciters();
+      const fetchedReciters = await fetchReciters();
+      // State updates from fetchReciters are asynchronous, so use the fetched
+      // result directly when this is the first playback attempt.
+      reciterToPlay = fetchedReciters[0] ?? null;
+      if (reciterToPlay) setSelectedReciter(reciterToPlay);
     }
-    if (reciters.length > 0 && !selectedReciter) {
-      setSelectedReciter(reciters[0]);
+    if (!reciterToPlay && reciters.length > 0) {
+      reciterToPlay = reciters[0];
+      setSelectedReciter(reciterToPlay);
     }
-    if (!selectedReciter || !selectedReciter.audioUrl) return;
-    await playAudio(selectedReciter.audioUrl);
+    if (!reciterToPlay?.audioUrl) return;
+    await playAudio(reciterToPlay.audioUrl);
   }
 
   function handlePause() {
