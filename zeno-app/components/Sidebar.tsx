@@ -190,7 +190,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
               <Text style={[t.captionMedium, s.sectionLabel, { color: colors.textMuted }]}>QURAN &amp; LEARNING</Text>
               <Pressable
                 style={({ pressed }) => [s.quranButton, pressed && { opacity: 0.7 }]}
-                onPress={() => router.push('/quran')}
+                onPress={() => { onClose(); router.push('/quran'); }}
               >
                 <BookOpen size={18} color={colors.accent} />
                 <Text style={[t.body, { color: colors.accent }]}>Quran GPT</Text>
@@ -202,7 +202,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
               <Text style={[t.captionMedium, s.sectionLabel, { color: colors.textMuted }]}>DAILY</Text>
               <Pressable
                 style={({ pressed }) => [s.quranButton, pressed && { opacity: 0.7 }]}
-                onPress={() => router.push('/today')}
+                onPress={() => { onClose(); router.push('/today'); }}
               >
                 <Sparkles size={18} color={colors.accent} />
                 <Text style={[t.body, { color: colors.accent }]}>Today</Text>
@@ -213,7 +213,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
               <Text style={[t.captionMedium, s.sectionLabel, { color: colors.textMuted }]}>UTILITY</Text>
               <Pressable
                 style={({ pressed }) => [s.utilityButton, pressed && { opacity: 0.7 }]}
-                onPress={() => router.push('/settings')}
+                onPress={() => { onClose(); router.push('/settings'); }}
               >
                 <Settings size={18} color={colors.textMuted} />
                 <Text style={[t.body, { color: colors.textPrimary }]}>Settings</Text>
