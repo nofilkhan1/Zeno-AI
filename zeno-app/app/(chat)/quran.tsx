@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, ActivityIndicator, useColorScheme, Keyboard } from 'react-native';
-import { Search, BookOpen, AlertCircle, HelpCircle, Volume2, Library, Hash, BookMarked, BarChart3 } from 'lucide-react-native';
+import { Search, BookOpen, AlertCircle, HelpCircle, Volume2, Library, Hash, BookMarked, BarChart3, Sparkles } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
@@ -602,6 +602,13 @@ export default function QuranScreen() {
         >
           <BarChart3 size={14} color={colors.textMuted} />
           <Text style={[t.caption, { color: colors.textMuted }]}>Quiz</Text>
+        </Pressable>
+        <Pressable
+          style={[s.modeTab, { backgroundColor: 'transparent' }]}
+          onPress={() => router.push('/today')}
+        >
+          <Sparkles size={14} color={colors.textMuted} />
+          <Text style={[t.caption, { color: colors.textMuted }]}>Today</Text>
         </Pressable>
       </View>
 
