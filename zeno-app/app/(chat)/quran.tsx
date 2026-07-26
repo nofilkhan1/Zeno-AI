@@ -663,16 +663,9 @@ export default function QuranScreen() {
       <Stack.Screen options={{ headerLeft: () => (
         <Pressable accessibilityRole="button" accessibilityLabel="All tools" style={s.headerBackButton} onPress={returnToHub}>
           <ArrowLeft size={22} color={colors.textPrimary} />
+          <Text style={[t.captionMedium, { color: colors.textPrimary }]}>All tools</Text>
         </Pressable>
       ) }} />
-      <Pressable
-        accessibilityRole="button"
-        style={({ pressed }) => [s.allToolsButton, { borderColor: colors.composerBorder }, pressed && { opacity: 0.72 }]}
-        onPress={returnToHub}
-      >
-        <ArrowLeft size={16} color={colors.accent} />
-        <Text style={[t.captionMedium, { color: colors.accent }]}>All tools</Text>
-      </Pressable>
       {/* ── Mode switcher ── */}
       <View style={[s.modeRow, { borderColor: colors.composerBorder, backgroundColor: colors.composerBg }]}>
         <Pressable
@@ -1366,8 +1359,7 @@ const s = StyleSheet.create({
   hubIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   hubCardTitle: { marginBottom: 4, lineHeight: 20 },
   hubCardDescription: { lineHeight: 17 },
-  headerBackButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  allToolsButton: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, minHeight: 36, paddingHorizontal: 4, marginBottom: 6 },
+  headerBackButton: { minWidth: 44, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingRight: 8 },
   modeRow: {
     flexDirection: 'row', gap: 4,
     borderRadius: radii.sm, borderWidth: 1, padding: 3, marginBottom: 8,
