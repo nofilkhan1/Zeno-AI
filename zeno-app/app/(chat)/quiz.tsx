@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
 import SURAHS from '../../lib/surahs';
+import QuranAyahText, { formatQuranTranslation, getAyahNumberFromVerseKey } from '../../components/QuranAyahText';
 
 const QUIZ_FN = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/quran-quiz`;
 
@@ -272,14 +273,16 @@ export default function QuizScreen() {
               </Text>
 
               {question.arabic && (
-                <Text style={[s.arabicText, { color: colors.textPrimary, marginTop: 8, marginBottom: 8 }]}>
-                  {question.arabic}
-                </Text>
+                <QuranAyahText
+                  arabic={question.arabic}
+                  ayah={getAyahNumberFromVerseKey(question.verseKey)}
+                  style={[s.arabicText, { color: colors.textPrimary, marginTop: 8, marginBottom: 8 }]}
+                />
               )}
 
               {question.translation && question.type !== 'translation' && (
                 <Text style={[t.caption, { color: colors.textMuted, fontStyle: 'italic', marginTop: 4 }]}>
-                  {question.translation.slice(0, 80)}{question.translation.length > 80 ? '…' : ''}
+                  {formatQuranTranslation(question.translation).slice(0, 80)}{question.translation.length > 80 ? '…' : ''}
                 </Text>
               )}
             </View>
