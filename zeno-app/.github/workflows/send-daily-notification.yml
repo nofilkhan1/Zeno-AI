@@ -1,0 +1,19 @@
+name: Send Daily Notifications
+
+on:
+  schedule:
+    # Runs at 6:00 AM UTC daily (adjust to match users' preferred_time)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    # Allow manual trigger for testing
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call send-daily-notification edge function
+        run: |
+          curl -s -X POST "${{ secrets.SUPABASE_FUNCTION_URL }}/send-daily-notification" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}'
