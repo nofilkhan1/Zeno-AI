@@ -320,32 +320,32 @@ export default function HifzScreen() {
                   return s.name.toLowerCase().includes(q) || s.englishName.toLowerCase().includes(q) || String(s.number).includes(q);
                 })
               : SURAHS
-            ).map((s) => {
-              const sp2 = surahProgress.get(s.number);
+            ).map((surah) => {
+              const sp2 = surahProgress.get(surah.number);
               const memCount = sp2?.memorized || 0;
               return (
                 <Pressable
-                  key={s.number}
+                  key={surah.number}
                   style={({ pressed }) => [s.surahOption, pressed && { opacity: 0.7 }]}
-                  onPress={() => selectSurah(s.number)}
+                  onPress={() => selectSurah(surah.number)}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
                     <View style={[s.surahNumBadge, { backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-                      <Text style={[t.caption, { color: colors.textMuted, fontSize: 11 }]}>{s.number}</Text>
+                      <Text style={[t.caption, { color: colors.textMuted, fontSize: 11 }]}>{surah.number}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[t.bodyMedium, { color: colors.textPrimary }]}>
-                        {s.number}. {s.name}
+                        {surah.number}. {surah.name}
                       </Text>
                       <Text style={[t.caption, { color: colors.textMuted }]}>
-                        {s.englishName} — {s.ayahCount} verses
+                        {surah.englishName} — {surah.ayahCount} verses
                       </Text>
                     </View>
                   </View>
                   {memCount > 0 && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <CheckCircle size={14} color="#16a34a" />
-                      <Text style={[t.caption, { color: '#16a34a' }]}>{memCount}/{s.ayahCount}</Text>
+                      <Text style={[t.caption, { color: '#16a34a' }]}>{memCount}/{surah.ayahCount}</Text>
                     </View>
                   )}
                 </Pressable>
