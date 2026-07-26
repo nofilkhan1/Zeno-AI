@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, Animated, Easing, StyleSheet, ActivityIndicator, TextInput, Pressable, useColorScheme } from 'react-native';
 import ActionDialog from './ActionDialog';
-import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal, BookOpen, Sparkles, Settings } from 'lucide-react-native';
+import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal, BookOpen, Sparkles } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Chat } from '../lib/types';
@@ -234,7 +234,7 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
               <Text style={[t.captionMedium, s.sectionLabel, { color: colors.textMuted }]}>QURAN &amp; LEARNING</Text>
               <Pressable
                 style={({ pressed }) => [s.quranButton, pressed && { opacity: 0.7 }]}
-                onPress={() => { onClose(); router.push('/quran'); }}
+                onPress={() => navigateAfterClose('/quran')}
               >
                 <BookOpen size={18} color={colors.accent} />
                 <Text style={[t.body, { color: colors.accent }]}>Quran GPT</Text>
@@ -246,22 +246,14 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
               <Text style={[t.captionMedium, s.sectionLabel, { color: colors.textMuted }]}>DAILY</Text>
               <Pressable
                 style={({ pressed }) => [s.quranButton, pressed && { opacity: 0.7 }]}
-                onPress={() => { onClose(); router.push('/today'); }}
+                onPress={() => navigateAfterClose('/today')}
               >
                 <Sparkles size={18} color={colors.accent} />
                 <Text style={[t.body, { color: colors.accent }]}>Today</Text>
               </Pressable>
             </View>
 
-            <View style={[s.utilitySection, { borderTopColor: colors.composerBorder }]}>
-              <Text style={[t.captionMedium, s.sectionLabel, { color: colors.textMuted }]}>UTILITY</Text>
-              <Pressable
-                style={({ pressed }) => [s.utilityButton, pressed && { opacity: 0.7 }]}
-                onPress={() => { onClose(); router.push('/settings'); }}
-              >
-                <Settings size={18} color={colors.textMuted} />
-                <Text style={[t.body, { color: colors.textPrimary }]}>Settings</Text>
-              </Pressable>
+            <View style={[s.footerSection, { borderTopColor: colors.composerBorder }]}>
               <Pressable
                 style={({ pressed }) => [s.signOutButton, pressed && { opacity: 0.7 }]}
                 onPress={signOut}
@@ -316,7 +308,7 @@ const s = StyleSheet.create({
   learningSection: { borderTopWidth: 1, paddingTop: 8 },
   dailySection: { borderTopWidth: 1, paddingTop: 8 },
   quranButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16 },
-  utilitySection: { borderTopWidth: 1, paddingTop: 8 },
+  footerSection: { marginTop: 'auto', borderTopWidth: 1, paddingTop: 8, paddingBottom: 8 },
   utilityButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16 },
   signOutButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16 },
 });
