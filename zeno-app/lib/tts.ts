@@ -25,7 +25,9 @@ function setState(s: TTSState, err?: string) {
 
 export function subscribeToTTS(fn: TTSListener) {
   listeners.add(fn);
-  return () => listeners.delete(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 }
 
 export function getTTSState() {
