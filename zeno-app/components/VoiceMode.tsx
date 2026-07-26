@@ -12,13 +12,13 @@ const SUPABASE_HOST = SUPABASE_URL.replace('https://', '');
 const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/chat`;
 const VAD_THRESHOLD = 1000;
 const VAD_CONSECUTIVE = 3;
-const VOICE_MODEL = 'nvidia/nemotron-mini-4b-instruct';
 const CHAT_TIMEOUT = 25000;
 
 type VoiceState = 'listening' | 'processing' | 'speaking';
 
 type Props = {
   chatId: string;
+  modelId: string;
   onClose: () => void;
 };
 
@@ -106,7 +106,7 @@ function speakChunk(chunk: string): Promise<void> {
   });
 }
 
-export default function VoiceMode({ chatId, onClose }: Props) {
+export default function VoiceMode({ chatId, modelId, onClose }: Props) {
   const colors = useColors();
   const t = typography(colors);
   const [state, setState] = useState<VoiceState>('listening');
@@ -128,7 +128,8 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const stateRef = useRef<VoiceState>('listening');
   const handleUtteranceEndRef = useRef<() => void>(() => {});
   const startListeningRef = useRef<() => void>(() => {});
-  const submitReasonRef = useRef<'confirm' | 'silence-fallback' | 'existing-flow'>('existing-flow');
+  const submitReasonRef = useRef<'confirm' | 'silence-fallback' | 'endpoint-final' | 'existing-flow'>('existing-flow');
+  const submissionInProgressRef = useRef(false);
   const diagnosticsRef = useRef<VoiceDiagnostics>({
     session: 0,
     buffersSent: 0,
@@ -262,6 +263,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
   const startListening = useCallback(async () => {
     if (cancelledRef.current) return;
     if (wsRef.current) return;
+    submissionInProgressRef.current = false;
     const diagnostics = diagnosticsRef.current;
     diagnostics.session++;
     diagnostics.buffersSent = 0;
@@ -331,16 +333,18 @@ export default function VoiceMode({ chatId, onClose }: Props) {
 
         if (msg.is_final) {
           diagnostics.finalResults++;
-          finalTranscriptRef.current = text
-            ? (finalTranscriptRef.current + text + ' ').trim()
-            : finalTranscriptRef.current;
-          setTranscript(finalTranscriptRef.current);
-          setInterimText('');
-          interimTranscriptRef.current = '';
+          if (text) {
+            finalTranscriptRef.current = (finalTranscriptRef.current + text + ' ').trim();
+            setTranscript(finalTranscriptRef.current);
+            setInterimText('');
+            interimTranscriptRef.current = '';
+          }
         } else {
-          diagnostics.interimResults++;
-          setInterimText(text);
-          interimTranscriptRef.current = text;
+          if (text) {
+            diagnostics.interimResults++;
+            setInterimText(text);
+            interimTranscriptRef.current = text;
+          }
         }
 
         logVoiceDiagnostic('deepgram-result', {
@@ -353,7 +357,14 @@ export default function VoiceMode({ chatId, onClose }: Props) {
           transcriptChars: text.length,
         });
 
-        resetSilenceTimer();
+        const combinedText = getCombinedTranscript();
+        if (endpointFinal && combinedText) {
+          if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+          submitReasonRef.current = 'endpoint-final';
+          handleUtteranceEndRef.current();
+        } else if (text) {
+          resetSilenceTimer();
+        }
       } catch {}
     };
 
@@ -397,9 +408,15 @@ export default function VoiceMode({ chatId, onClose }: Props) {
 
   // ── Utterance end → PROCESSING → chat API → SPEAKING (chunked TTS) ──
   const handleUtteranceEnd = useCallback(async () => {
+    if (submissionInProgressRef.current) {
+      logVoiceDiagnostic('submit-skipped', { reason: 'already-in-progress' });
+      return;
+    }
+
     const text = getCombinedTranscript();
     if (!text) { startListening(); return; }
 
+    submissionInProgressRef.current = true;
     logVoiceDiagnostic('submit', { reason: submitReasonRef.current, transcriptChars: text.length });
     submitReasonRef.current = 'existing-flow';
     interimTranscriptRef.current = '';
@@ -421,7 +438,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       const response = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, message: text, modelOverride: VOICE_MODEL }),
+        body: JSON.stringify({ chatId, message: text, modelOverride: modelId }),
         signal: controller.signal,
       });
 
@@ -483,7 +500,7 @@ export default function VoiceMode({ chatId, onClose }: Props) {
       console.error('[VOICE] Chat error:', err);
       if (!cancelledRef.current) startListening();
     }
-  }, [chatId, startListening]);
+  }, [chatId, getCombinedTranscript, modelId, startListening]);
 
   // ── Barge-in (hard reset) ───────────────────────────────────
   const handleBargeIn = useCallback(() => {
