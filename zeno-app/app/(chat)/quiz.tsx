@@ -267,7 +267,7 @@ export default function QuizScreen() {
           {/* Prompt */}
           {question && (
             <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
-              <Text style={[t.body, { color: colors.textPrimary, lineHeight: 24, marginBottom: 12, whiteSpace: 'pre-wrap' }]}>
+              <Text style={[t.body, { color: colors.textPrimary, lineHeight: 24, marginBottom: 12 }]}>
                 {question.prompt}
               </Text>
 
