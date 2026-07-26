@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, useColorScheme, Switch, Platform } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import { BookOpen, Bell, BellOff, Sun, Moon, Star, ChevronRight } from 'lucide-react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, useColorScheme } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { BookOpen, Bell, Star, ChevronRight } from 'lucide-react-native';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
-import { registerForPushNotifications, storePushToken, getNotificationPreferences, setNotificationPreferences, removePushToken } from '../../lib/notifications';
 import QuranAyahText, { formatQuranTranslation, getAyahNumberFromVerseKey } from '../../components/QuranAyahText';
 
 const TODAY_FN = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/send-daily-notification`;
@@ -23,32 +22,18 @@ type DailyDua = {
   source: string;
 };
 
-const TIME_OPTIONS = [
-  { label: 'Fajr (dawn)', value: '05:00:00' },
-  { label: 'Morning (6 AM)', value: '06:00:00' },
-  { label: 'Mid-morning (8 AM)', value: '08:00:00' },
-  { label: 'Noon (12 PM)', value: '12:00:00' },
-  { label: 'Afternoon (3 PM)', value: '15:00:00' },
-  { label: 'Evening (6 PM)', value: '18:00:00' },
-  { label: 'Night (9 PM)', value: '21:00:00' },
-];
-
 export default function TodayScreen() {
   const colors = useColors();
   const scheme = useColorScheme();
   const t = typography(colors);
+  const router = useRouter();
   const [verse, setVerse] = useState<DailyVerse | null>(null);
   const [dua, setDua] = useState<DailyDua | null>(null);
   const [loading, setLoading] = useState(true);
-  const [prefs, setPrefs] = useState<{ daily_verse_enabled: boolean; daily_dua_enabled: boolean; preferred_time: string } | null>(null);
-  const [prefsLoading, setPrefsLoading] = useState(true);
-  const [pushSetupLoading, setPushSetupLoading] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       loadDailyContent();
-      loadPreferences();
     }, [])
   );
 
@@ -67,53 +52,9 @@ export default function TodayScreen() {
     }
   }
 
-  async function loadPreferences() {
-    setPrefsLoading(true);
-    const p = await getNotificationPreferences();
-    setPrefs(p || { daily_verse_enabled: false, daily_dua_enabled: false, preferred_time: '06:00:00' });
-    setPrefsLoading(false);
-  }
-
-  async function handleToggleVerse(value: boolean) {
-    if (value && !prefs?.daily_verse_enabled) {
-      setPushSetupLoading(true);
-      const token = await registerForPushNotifications();
-      if (token) {
-        await storePushToken(token);
-      }
-      setPushSetupLoading(false);
-    }
-    await setNotificationPreferences({ daily_verse_enabled: value });
-    setPrefs((prev) => prev ? { ...prev, daily_verse_enabled: value } : { daily_verse_enabled: value, daily_dua_enabled: false, preferred_time: '06:00:00' });
-  }
-
-  async function handleToggleDua(value: boolean) {
-    if (value && !prefs?.daily_dua_enabled) {
-      setPushSetupLoading(true);
-      const token = await registerForPushNotifications();
-      if (token) {
-        await storePushToken(token);
-      }
-      setPushSetupLoading(false);
-    }
-    await setNotificationPreferences({ daily_dua_enabled: value });
-    setPrefs((prev) => prev ? { ...prev, daily_dua_enabled: value } : { daily_verse_enabled: false, daily_dua_enabled: value, preferred_time: '06:00:00' });
-  }
-
-  async function handleTimeChange(time: string) {
-    await setNotificationPreferences({ preferred_time: time });
-    setPrefs((prev) => prev ? { ...prev, preferred_time: time } : { daily_verse_enabled: false, daily_dua_enabled: false, preferred_time: time });
-    setShowTimePicker(false);
-  }
-
   function getDateLabel(): string {
     const now = new Date();
     return now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  }
-
-  function getTimeLabel(value: string): string {
-    const opt = TIME_OPTIONS.find((o) => o.value === value);
-    return opt ? opt.label : value;
   }
 
   return (
@@ -172,113 +113,23 @@ export default function TodayScreen() {
             </View>
           )}
 
-          {/* Notification Preferences */}
-          <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow()]}>
-            <View style={s.cardHeader}>
-              <Bell size={16} color={colors.accent} />
-              <Text style={[t.captionMedium, { color: colors.accent, marginLeft: 8 }]}>
-                Daily Notifications
-              </Text>
+          <Pressable
+            style={({ pressed }) => [s.manageNotifications, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }, softShadow(), pressed && { opacity: 0.72 }]}
+            onPress={() => router.push('/settings')}
+          >
+            <Bell size={18} color={colors.accent} />
+            <View style={{ flex: 1 }}>
+              <Text style={[t.bodyMedium, { color: colors.textPrimary }]}>Manage notifications</Text>
+              <Text style={t.caption}>Daily verse and dua delivery preferences.</Text>
             </View>
-            <Text style={[t.caption, { color: colors.textMuted, marginBottom: 12 }]}>
-              Receive a push notification each day with the verse and dua above.
-            </Text>
-
-            {prefsLoading ? (
-              <ActivityIndicator size="small" color={colors.accent} />
-            ) : (
-              <>
-                <View style={s.toggleRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[t.body, { color: colors.textPrimary }]}>Daily Verse</Text>
-                    <Text style={[t.caption, { color: colors.textMuted }]}>Receive today's verse</Text>
-                  </View>
-                  {pushSetupLoading ? (
-                    <ActivityIndicator size="small" color={colors.accent} />
-                  ) : (
-                    <Switch
-                      value={prefs?.daily_verse_enabled ?? false}
-                      onValueChange={handleToggleVerse}
-                      trackColor={{ false: colors.composerBorder, true: colors.accent }}
-                      thumbColor={Platform.OS === 'android' ? '#fff' : undefined}
-                    />
-                  )}
-                </View>
-
-                <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
-
-                <View style={s.toggleRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[t.body, { color: colors.textPrimary }]}>Daily Dua</Text>
-                    <Text style={[t.caption, { color: colors.textMuted }]}>Receive today's dua</Text>
-                  </View>
-                  {pushSetupLoading ? (
-                    <ActivityIndicator size="small" color={colors.accent} />
-                  ) : (
-                    <Switch
-                      value={prefs?.daily_dua_enabled ?? false}
-                      onValueChange={handleToggleDua}
-                      trackColor={{ false: colors.composerBorder, true: colors.accent }}
-                      thumbColor={Platform.OS === 'android' ? '#fff' : undefined}
-                    />
-                  )}
-                </View>
-
-                {(prefs?.daily_verse_enabled || prefs?.daily_dua_enabled) && (
-                  <>
-                    <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
-                    <Pressable
-                      style={s.timeRow}
-                      onPress={() => setShowTimePicker(!showTimePicker)}
-                    >
-                      <Sun size={16} color={colors.accent} />
-                      <Text style={[t.body, { color: colors.textPrimary, flex: 1, marginLeft: 8 }]}>
-                        Preferred time
-                      </Text>
-                      <Text style={[t.caption, { color: colors.textMuted, marginRight: 4 }]}>
-                        {prefs ? getTimeLabel(prefs.preferred_time) : 'Morning (6 AM)'}
-                      </Text>
-                      <ChevronRight size={14} color={colors.textMuted} />
-                    </Pressable>
-
-                    {showTimePicker && (
-                      <View style={{ marginTop: 8 }}>
-                        {TIME_OPTIONS.map((opt) => (
-                          <Pressable
-                            key={opt.value}
-                            style={[
-                              s.timeOption,
-                              {
-                                backgroundColor: prefs?.preferred_time === opt.value
-                                  ? (scheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)')
-                                  : 'transparent',
-                              },
-                            ]}
-                            onPress={() => handleTimeChange(opt.value)}
-                          >
-                            <Text style={[
-                              t.body,
-                              {
-                                color: prefs?.preferred_time === opt.value ? colors.accent : colors.textPrimary,
-                              },
-                            ]}>
-                              {opt.label}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-          </View>
+            <ChevronRight size={18} color={colors.textMuted} />
+          </Pressable>
 
           {/* Info note */}
           <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.composerBorder, opacity: 0.8 }]}>
             <Text style={[t.caption, { color: colors.textMuted, lineHeight: 18, textAlign: 'center' }]}>
               The same verse and dua are shared with all users each day.
-              {'\n'}Turn on notifications above to receive them as a push.
+              {'\n'}Manage delivery preferences in Settings.
             </Text>
           </View>
         </>
@@ -299,16 +150,5 @@ const s = StyleSheet.create({
     textAlign: 'right', writingDirection: 'rtl',
   },
   divider: { height: 1, marginVertical: 12 },
-  toggleRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  timeRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 8,
-  },
-  timeOption: {
-    paddingVertical: 10, paddingHorizontal: 12, borderRadius: radii.sm,
-    marginBottom: 4,
-  },
+  manageNotifications: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: radii.md, borderWidth: 1, paddingHorizontal: 16, marginBottom: 12 },
 });
