@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, useColorScheme, Switch, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { BookOpen, Bell, BellOff, Sun, Moon, Star, ChevronRight, Sparkles } from 'lucide-react-native';
+import { BookOpen, Bell, BellOff, Sun, Moon, Star, ChevronRight } from 'lucide-react-native';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
 import { registerForPushNotifications, storePushToken, getNotificationPreferences, setNotificationPreferences, removePushToken } from '../../lib/notifications';
 import QuranAyahText, { formatQuranTranslation, getAyahNumberFromVerseKey } from '../../components/QuranAyahText';
@@ -118,11 +118,6 @@ export default function TodayScreen() {
 
   return (
     <ScrollView style={[s.container, { backgroundColor: colors.bg }]} contentContainerStyle={{ paddingBottom: 40 }}>
-      {/* Header */}
-      <View style={s.header}>
-        <Sparkles size={20} color={colors.accent} />
-        <Text style={[t.heading, { color: colors.accent, marginLeft: 8 }]}>Today</Text>
-      </View>
       <Text style={[t.caption, { color: colors.textMuted, marginBottom: 16 }]}>{getDateLabel()}</Text>
 
       {loading ? (
@@ -294,7 +289,6 @@ export default function TodayScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   card: {
     borderRadius: radii.md, borderWidth: 1, padding: 16, marginBottom: 12,
   },
