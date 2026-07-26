@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
 import QuranAudioPlayer from '../../components/QuranAudioPlayer';
+import QuranAyahText, { formatQuranTranslation, getAyahNumberFromVerseKey } from '../../components/QuranAyahText';
 
 const LOOKUP_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/quran-lookup`;
 const ANSWER_FUNCTION_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/quran-answer`;
@@ -853,9 +854,9 @@ export default function QuranScreen() {
                       </View>
                       <QuranAudioPlayer surah={v.surahNumber} ayah={v.ayah} verseKey={v.verseKey} />
                     </View>
-                    <Text style={[s.arabicText, { color: colors.textPrimary }]}>{v.arabic}</Text>
+                    <QuranAyahText arabic={v.arabic} ayah={v.ayah} style={[s.arabicText, { color: colors.textPrimary }]} />
                     <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
-                    <Text style={[t.body, { color: colors.textPrimary }]}>{v.translation}</Text>
+                    <Text style={[t.body, { color: colors.textPrimary }]}>{formatQuranTranslation(v.translation)}</Text>
                     <Text style={[t.caption, { marginTop: 4 }]}>{v.translationSource}</Text>
                   </View>
                 ))}
@@ -948,12 +949,16 @@ export default function QuranScreen() {
                 return null;
               })()}
             </View>
-            <Text style={[s.arabicText, { color: colors.textPrimary }]}>{ayahResult.arabic}</Text>
+            <QuranAyahText
+              arabic={ayahResult.arabic}
+              ayah={getAyahNumberFromVerseKey(ayahResult.verseKey)}
+              style={[s.arabicText, { color: colors.textPrimary }]}
+            />
             {ayahResult.transliteration && (
               <Text style={[t.caption, { fontStyle: 'italic', marginTop: 12 }]}>{ayahResult.transliteration}</Text>
             )}
             <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
-            <Text style={[t.body, { color: colors.textPrimary }]}>{ayahResult.translation}</Text>
+            <Text style={[t.body, { color: colors.textPrimary }]}>{formatQuranTranslation(ayahResult.translation)}</Text>
 
             {/* Tafsir toggle */}
             <Pressable
@@ -1161,11 +1166,11 @@ export default function QuranScreen() {
                   </View>
                   <QuranAudioPlayer surah={r.surahNumber} ayah={r.ayah} verseKey={r.verseKey} />
                 </View>
-                <Text style={[s.arabicText, { color: colors.textPrimary }]}>{r.arabic}</Text>
+                <QuranAyahText arabic={r.arabic} ayah={r.ayah} style={[s.arabicText, { color: colors.textPrimary }]} />
                 {r.translation && (
                   <>
                     <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
-                    <Text style={[t.body, { color: colors.textPrimary }]}>{r.translation}</Text>
+                    <Text style={[t.body, { color: colors.textPrimary }]}>{formatQuranTranslation(r.translation)}</Text>
                     <Text style={[t.caption, { marginTop: 4 }]}>{r.translationSource}</Text>
                   </>
                 )}
@@ -1214,9 +1219,9 @@ export default function QuranScreen() {
                       </View>
                       <QuranAudioPlayer surah={v.surahNumber} ayah={v.ayah} verseKey={v.verseKey} />
                     </View>
-                    <Text style={[s.arabicText, { color: colors.textPrimary }]}>{v.arabic}</Text>
+                    <QuranAyahText arabic={v.arabic} ayah={v.ayah} style={[s.arabicText, { color: colors.textPrimary }]} />
                     <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
-                    <Text style={[t.body, { color: colors.textPrimary }]}>{v.translation}</Text>
+                    <Text style={[t.body, { color: colors.textPrimary }]}>{formatQuranTranslation(v.translation)}</Text>
                     <Text style={[t.caption, { marginTop: 4 }]}>{v.translationSource}</Text>
                   </View>
                 ))}
