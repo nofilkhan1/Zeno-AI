@@ -130,20 +130,20 @@ export default function SettingsScreen() {
 
         {prefsLoading ? <ActivityIndicator size="small" color={colors.accent} /> : (
           <>
-            <View style={s.row}>
+            <View style={[s.row, s.notificationRow]}>
               <View style={s.rowContent}>
                 <Text style={[t.bodyMedium, { color: colors.textPrimary }]}>Daily Verse</Text>
                 <Text style={t.caption}>Receive today&apos;s verse.</Text>
               </View>
-              {pushSetupLoading ? <ActivityIndicator size="small" color={colors.accent} /> : <Switch value={prefs?.daily_verse_enabled ?? false} onValueChange={handleToggleVerse} trackColor={{ false: colors.composerBorder, true: colors.accent }} thumbColor="#fff" />}
+              {pushSetupLoading ? <ActivityIndicator style={s.notificationControl} size="small" color={colors.accent} /> : <Switch style={s.notificationControl} value={prefs?.daily_verse_enabled ?? false} onValueChange={handleToggleVerse} trackColor={{ false: colors.composerBorder, true: colors.accent }} thumbColor="#fff" />}
             </View>
             <View style={[s.divider, { backgroundColor: colors.composerBorder }]} />
-            <View style={s.row}>
+            <View style={[s.row, s.notificationRow]}>
               <View style={s.rowContent}>
                 <Text style={[t.bodyMedium, { color: colors.textPrimary }]}>Daily Dua</Text>
                 <Text style={t.caption}>Receive today&apos;s dua.</Text>
               </View>
-              {pushSetupLoading ? <ActivityIndicator size="small" color={colors.accent} /> : <Switch value={prefs?.daily_dua_enabled ?? false} onValueChange={handleToggleDua} trackColor={{ false: colors.composerBorder, true: colors.accent }} thumbColor="#fff" />}
+              {pushSetupLoading ? <ActivityIndicator style={s.notificationControl} size="small" color={colors.accent} /> : <Switch style={s.notificationControl} value={prefs?.daily_dua_enabled ?? false} onValueChange={handleToggleDua} trackColor={{ false: colors.composerBorder, true: colors.accent }} thumbColor="#fff" />}
             </View>
             {(prefs?.daily_verse_enabled || prefs?.daily_dua_enabled) && (
               <>
@@ -218,13 +218,15 @@ const s = StyleSheet.create({
   sectionDescription: { marginBottom: 12 },
   themePicker: { flexDirection: 'row', gap: 4, borderWidth: 1, borderRadius: radii.sm, padding: 3 },
   themeOption: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: radii.sm - 2, paddingHorizontal: 4 },
-  pushNote: { lineHeight: 18, marginBottom: 12 },
+  pushNote: { lineHeight: 18, marginBottom: 16 },
   row: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  rowContent: { flex: 1 },
+  notificationRow: { minHeight: 64, paddingVertical: 8 },
+  notificationControl: { flexShrink: 0 },
+  rowContent: { flex: 1, minWidth: 0 },
   helpRowContent: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   rowIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  divider: { height: 1, marginVertical: 4 },
-  timeOption: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: radii.sm, marginTop: 4 },
+  divider: { height: 1, marginVertical: 6 },
+  timeOption: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: radii.sm, marginTop: 6 },
   trustNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderRadius: radii.sm, padding: 12, marginTop: 12 },
   trustText: { flex: 1, lineHeight: 18 },
   version: { textAlign: 'center', marginTop: 8 },

@@ -70,7 +70,9 @@ function RootLayoutContent({ loading, fontsReady }: { loading: boolean; fontsRea
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={resolved === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
-      <Slot />
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <Slot />
+      </View>
     </SafeAreaProvider>
   );
 }

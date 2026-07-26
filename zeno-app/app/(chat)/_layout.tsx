@@ -34,6 +34,7 @@ export default function ChatLayout() {
 
   return (
     <Stack screenOptions={{
+      animation: 'fade',
       headerStyle: { backgroundColor: colors.bg },
       contentStyle: { backgroundColor: colors.bg },
       headerTintColor: colors.textPrimary,
