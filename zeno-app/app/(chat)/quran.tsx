@@ -625,9 +625,8 @@ export default function QuranScreen() {
 
   if (workspace === 'hub') {
     const hubTools = [
-      { title: 'Ask Quran', description: 'Ask a question and explore sourced Quran guidance.', icon: <HelpCircle size={21} color={colors.accent} />, onPress: () => openWorkspace('quran', 'ask') },
-      { title: 'Verse Lookup & Search', description: 'Find an ayah by reference or search its translation.', icon: <Search size={21} color={colors.accent} />, onPress: () => openWorkspace('quran', 'lookup') },
-      { title: 'Hadith Search', description: 'Search hadith collections by topic or keyword.', icon: <Library size={21} color={colors.accent} />, onPress: () => openWorkspace('hadith') },
+      { title: 'Ask Quran', description: 'Ask a question and receive retrieval-grounded Quran guidance.', icon: <HelpCircle size={21} color={colors.accent} />, onPress: () => openWorkspace('quran', 'ask') },
+      { title: 'Search Quran & Hadith', description: 'Find a Quran verse or search verified Quran and Hadith sources.', icon: <Search size={21} color={colors.accent} />, onPress: () => openWorkspace('quran', 'lookup') },
       { title: 'Continue Hifz', description: 'Resume your memorization practice and progress.', icon: <BookMarked size={21} color={colors.accent} />, onPress: () => router.push('/hifz') },
       { title: 'Quran Quiz', description: 'Review what you know with focused Quran quizzes.', icon: <BarChart3 size={21} color={colors.accent} />, onPress: () => router.push('/quiz') },
       { title: 'Today’s Verse & Dua', description: 'Read today’s reflection, verse, and verified dua.', icon: <Sparkles size={21} color={colors.accent} />, onPress: () => router.push('/today') },
