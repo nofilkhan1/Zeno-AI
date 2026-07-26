@@ -526,7 +526,7 @@ async function callNvidia(messages: unknown[]): Promise<{ ok: true; content: str
     const res = await fetch(NVIDIA_ENDPOINT, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${nvidiaApiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'nvidia/nemotron-mini-4b-instruct', messages, stream: false }),
+      body: JSON.stringify({ model: 'meta/llama-3.1-8b-instruct', messages, stream: false }),
       signal: abort.signal,
     });
     if (!res.ok) {
@@ -568,6 +568,7 @@ function extractKeywords(question: string): string[] {
     'after', 'above', 'below', 'between', 'out', 'off', 'over', 'under',
     'again', 'further', 'once', 'here', 'there', 'tell', 'me', 'explain',
     'ruling', 'rulings', 'concept', 'meaning', 'definition',
+    'quran', 'koran', 'islam', 'muslim',
   ]);
   return question
     .toLowerCase()
@@ -762,7 +763,7 @@ Deno.serve(async (req) => {
     for (const dv of directSurahVerses) {
       if (!directSurahSet.has(dv.verseKey)) {
         directSurahSet.add(dv.verseKey);
-        quranVerses.push({ ...dv, translationSource: `${tr} (direct surah)` });
+        quranVerses.push({ ...dv, translationSource: `${tr} (direct surah)`, _isDirectSurah: true });
       }
     }
 
@@ -789,6 +790,7 @@ Deno.serve(async (req) => {
     console.log(`[Quran-Answer] direct surah: ${directSurahVerses.length} verses, keyword: ${quranResults.flat().length - directSurahVerses.length} verses (${directSurahVerses.length} deduped), hadiths: ${hadiths.length}`);
 
     // Merge semantic search results — BUT filter by minimum similarity threshold
+    let semanticAdded = 0;
     if (semanticVerses.length > 0) {
       const aboveThreshold = semanticVerses.filter(sv => sv.similarity >= SEMANTIC_MIN_SIMILARITY);
       console.log(`[Quran-Answer] semantic search returned ${semanticVerses.length} verses, ${aboveThreshold.length} above similarity threshold ${SEMANTIC_MIN_SIMILARITY}`);
@@ -805,7 +807,9 @@ Deno.serve(async (req) => {
               arabic: '',
               translation: sv.translation_text,
               translationSource: `${tr} (semantic, sim=${sv.similarity.toFixed(3)})`,
+              _isSemantic: true,
             });
+            semanticAdded++;
           }
         }
       }
@@ -815,19 +819,26 @@ Deno.serve(async (req) => {
 
     // Sort: direct surah first, then semantic, then keyword matches
     quranVerses.sort((a, b) => {
-      const aDirect = a.translationSource.includes('(direct surah)') ? 0 : 1;
-      const bDirect = b.translationSource.includes('(direct surah)') ? 0 : 1;
+      const aDirect = (a as Record<string, unknown>)._isDirectSurah ? 0 : 1;
+      const bDirect = (b as Record<string, unknown>)._isDirectSurah ? 0 : 1;
       if (aDirect !== bDirect) return aDirect - bDirect;
-      const aSem = a.translationSource.includes('(semantic)') ? -1 : 1;
-      const bSem = b.translationSource.includes('(semantic)') ? -1 : 1;
+      const aSem = (a as Record<string, unknown>)._isSemantic ? -1 : 1;
+      const bSem = (b as Record<string, unknown>)._isSemantic ? -1 : 1;
       return aSem - bSem;
     });
+    console.log(`[Quran-Answer] pre-sort quranVerses count: ${quranVerses.length}, semanticAdded: ${semanticAdded}, keywords total: ${quranResults.flat().length}`);
+
     const quranVersesFinal = quranVerses.slice(0, 8);
 
     // Log retrieved context for audit
     console.log(`[Quran-Answer] === RETRIEVED CONTEXT (${quranVersesFinal.length} verses, ${hadiths.length} hadiths) ===`);
     for (const v of quranVersesFinal) {
       console.log(`[Quran-Answer] [VERSE] ${v.verseKey} ${v.surahName} [${v.translationSource}]: ${v.translation.slice(0, 120)}`);
+    }
+
+    // Debug: log full quranVerses order for diagnosis
+    for (let i = 0; i < quranVerses.length; i++) {
+      console.log(`[Quran-Answer] [SORTED ${i}] ${quranVerses[i].verseKey} [${quranVerses[i].translationSource}]`);
     }
     for (const h of hadiths) {
       console.log(`[Quran-Answer] [HADITH] ${h.collectionName} #${h.hadithNumber} (${h.grade}): ${h.english.slice(0, 120)}`);
@@ -905,17 +916,17 @@ Deno.serve(async (req) => {
     const contextStr = contextParts.join('\n');
     console.log(`[Quran-Answer] context length: ${contextStr.length} chars`);
 
-    const systemPrompt = `You are a knowledgeable Islamic studies assistant. Your role is to answer questions about Islam using ONLY the retrieved Quran verses and authentic hadiths provided below as context.
+    const systemPrompt = `You are a knowledgeable Islamic studies assistant. Your role is to answer questions about Islam using the retrieved Quran verses and authentic hadiths provided below as context.
 
 CRITICAL RULES:
-1. Answer using ONLY the retrieved verses and hadiths provided in the context below. Never use your own knowledge to add unretrieved Quran citations or hadith.
-2. Every claim about what the Quran says MUST cite the specific Surah:Ayah reference from the context (e.g., "Quran 2:183").
-3. Every claim about what a hadith says MUST cite the collection and number from the context (e.g., "Sahih al-Bukhari #8").
-4. Clearly separate the types of evidence.
-5. If a SCHOLARLY EXPLANATION section is provided in the context, you may reference it in your answer, but always attribute it clearly — e.g., "According to Ibn Kathir's tafsir..." or "Ma'arif al-Qur'an explains...". Never present tafsir content as if it were your own explanation. If no SCHOLARLY EXPLANATION is present, do not fabricate one.
-6. If the retrieved context does not contain enough to answer confidently, say honestly: "I could not find a direct verse or hadith addressing this exact question" rather than fabricating an answer.
-7. For topics where Islamic scholars genuinely differ (e.g., fiqh rulings), present it as "Scholars differ on this issue" rather than a single definitive ruling. Do NOT issue a personal fatwa. Suggest consulting a qualified scholar for specific personal rulings.
-8. Never fabricate a verse, hadith, chain of narration, or scholarly quotation.
+1. Answer using the retrieved verses and hadiths provided in the context. You may summarize what they say collectively. Never fabricate a verse, hadith, or citation that is not in the context.
+2. Every claim about what the Quran says MUST cite the specific Surah:Ayah reference (e.g., "Quran 2:183").
+3. Every claim about what a hadith says MUST cite the collection and number (e.g., "Sahih al-Bukhari #8").
+4. If multiple retrieved verses address the topic, synthesize them into a coherent answer rather than fixating on a single verse.
+5. If a SCHOLARLY EXPLANATION section is provided, you may reference it with attribution (e.g., "Ibn Kathir explains..."). Never present tafsir as your own explanation.
+6. If the retrieved context clearly contains relevant verses and hadiths, use them to answer the question. Do NOT claim "no direct verse exists" when the context provides relevant verses.
+7. For topics where scholars differ (e.g., fiqh rulings), present it as "Scholars differ" rather than a definitive ruling. Do not issue a fatwa.
+8. Be honest: do not fabricate any verse, hadith, or scholarly quote.
 
 At the end of your response, on its own line, add one of these confidence indicators:
 [CONFIDENCE: green] — direct Quran verse or authentic hadith clearly addresses the question
@@ -923,7 +934,7 @@ At the end of your response, on its own line, add one of these confidence indica
 [CONFIDENCE: orange] — weaker evidence or minority opinion only
 [CONFIDENCE: red] — no clear textual evidence found`;
 
-    const userMsg = `Question: ${question}\n\nRetrieved context:\n${contextStr}\n\nAnswer my question using ONLY the context above. If the context lacks enough to answer, say so honestly.`;
+    const userMsg = `Question: ${question}\n\nRetrieved context:\n${contextStr}\n\nAnswer my question using the context above. Synthesize all relevant verses and hadiths into a complete answer. If the context lacks enough to answer, say so honestly.`;
 
     console.log(`[Quran-Answer] calling NVIDIA (messages length: ${systemPrompt.length + userMsg.length} chars)...`);
     const result = await callNvidia([
@@ -959,6 +970,11 @@ At the end of your response, on its own line, add one of these confidence indica
     }
     const cleanAnswer = result.content.replace(/\[CONFIDENCE:\s*(green|yellow|orange|red)\]/gi, '').trim();
 
+    const semanticForDebug = semanticVerses.map((sv: Record<string, unknown>) => ({
+      key: `${sv.surah}:${sv.ayah}`,
+      sim: sv.similarity,
+      text: (sv.translation_text as string || '').slice(0, 60),
+    }));
     return new Response(JSON.stringify({
       answer: cleanAnswer,
       error: null,
@@ -967,6 +983,7 @@ At the end of your response, on its own line, add one of these confidence indica
       hadiths,
       tafsir: tafsir ? { source: tafsir.name, author: tafsir.author, text: tafsir.text.slice(0, 2000) } : null,
       confidence,
+      _debug: { semanticCount: semanticVerses.length, keywordTotal: quranResults.flat().length },
     }), { headers: { 'Content-Type': 'application/json' } });
   } catch (err) {
     console.error(`[Quran-Answer] error:`, err);
