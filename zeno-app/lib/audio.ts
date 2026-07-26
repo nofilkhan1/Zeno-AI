@@ -21,7 +21,9 @@ function setState(s: AudioState, err?: string) {
 
 export function subscribeToAudio(fn: AudioListener) {
   listeners.add(fn);
-  return () => listeners.delete(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 }
 
 export function getAudioState() {
