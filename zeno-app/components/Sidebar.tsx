@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, Animated, Easing, StyleSheet, ActivityIndicator, TextInput, Pressable, useColorScheme } from 'react-native';
 import ActionDialog from './ActionDialog';
 import { Plus, MessageSquare, X, LogOut, Check, MoreHorizontal, BookOpen, Sparkles, Settings } from 'lucide-react-native';
@@ -43,6 +43,9 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
   const insets = useSafeAreaInsets();
   const tx = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const [isMounted, setIsMounted] = useState(visible);
+  const closingRef = useRef(false);
+  const navigatingRef = useRef(false);
   const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState('');
   const [menuChat, setMenuChat] = useState<Chat | null>(null);
@@ -55,14 +58,55 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
     Animated.timing(renameAnim, { toValue: renamingChatId ? 1 : 0, duration: 200, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
   }, [renamingChatId]);
 
-  useEffect(() => {
-    const duration = 200;
+  const runCloseAnimation = useCallback((afterClose?: () => void) => {
     Animated.parallel([
-      Animated.timing(tx, { toValue: visible ? 0 : -SIDEBAR_WIDTH, duration, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-      Animated.timing(overlayOpacity, { toValue: visible ? 1 : 0, duration, useNativeDriver: true }),
-    ]).start();
-    if (!visible) { setRenamingChatId(null); setRenameText(''); }
-  }, [visible]);
+      Animated.timing(tx, { toValue: -SIDEBAR_WIDTH, duration: 200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.timing(overlayOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(({ finished }) => {
+      setIsMounted(false);
+      closingRef.current = false;
+      setRenamingChatId(null);
+      setRenameText('');
+      if (finished) afterClose?.();
+    });
+  }, [overlayOpacity, tx]);
+
+  const closeSidebar = useCallback((afterClose?: () => void) => {
+    if (!isMounted || closingRef.current) return;
+    closingRef.current = true;
+    onClose();
+    runCloseAnimation(afterClose);
+  }, [isMounted, onClose, runCloseAnimation]);
+
+  const navigateAfterClose = useCallback((destination: '/quran' | '/today') => {
+    if (navigatingRef.current) return;
+    navigatingRef.current = true;
+    closeSidebar(() => {
+      router.push(destination);
+      navigatingRef.current = false;
+    });
+  }, [closeSidebar, router]);
+
+  useEffect(() => {
+    if (visible) {
+      closingRef.current = false;
+      tx.setValue(-SIDEBAR_WIDTH);
+      overlayOpacity.setValue(0);
+      setIsMounted(true);
+      const timer = setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(tx, { toValue: 0, duration: 200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          Animated.timing(overlayOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        ]).start();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+
+    if (isMounted && !closingRef.current) {
+      closingRef.current = true;
+      runCloseAnimation();
+    }
+  }, [overlayOpacity, runCloseAnimation, tx, visible]);
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -149,13 +193,13 @@ export default function Sidebar({ visible, onClose, onNewChat, chats = [], onSel
 
   return (
     <>
-      {visible && (
+      {isMounted && (
         <Animated.View style={[s.overlay, { backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.2)', opacity: overlayOpacity }]}>
-          <Pressable style={s.overlayPress} onPress={onClose} />
+          <Pressable style={s.overlayPress} onPress={() => closeSidebar()} />
           <Animated.View style={[s.sidebar, { backgroundColor: colors.sidebarBg, paddingTop: insets.top + 10 }, softShadow(), { transform: [{ translateX: tx }] }]}>
             <View style={s.header}>
               <Text style={t.title}>Zeno</Text>
-              <Pressable onPress={onClose} style={s.closeBtn} hitSlop={hitSlop}>
+              <Pressable onPress={() => closeSidebar()} style={s.closeBtn} hitSlop={hitSlop}>
                 <X size={22} color={colors.textMuted} />
               </Pressable>
             </View>
