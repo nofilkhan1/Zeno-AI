@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, ActivityIndicator, useColorScheme, Keyboard } from 'react-native';
-import { Search, BookOpen, AlertCircle, HelpCircle, Volume2, Library, Hash, BookMarked, BarChart3, Sparkles } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, ActivityIndicator, useColorScheme, Keyboard, BackHandler } from 'react-native';
+import { ArrowLeft, Search, BookOpen, AlertCircle, HelpCircle, Volume2, Library, Hash, BookMarked, BarChart3, Sparkles } from 'lucide-react-native';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
 import QuranAudioPlayer from '../../components/QuranAudioPlayer';
@@ -36,6 +36,8 @@ const HADITH_COLLECTIONS = [
 ];
 
 type Mode = 'quran' | 'hadith';
+type Workspace = 'hub' | 'workspace';
+type QuranWorkspaceIntent = 'ask' | 'lookup';
 
 type FigureInfo = {
   name: string;
@@ -321,6 +323,8 @@ export default function QuranScreen() {
   const scheme = useColorScheme();
   const t = typography(colors);
   const [mode, setMode] = useState<Mode>('quran');
+  const [workspace, setWorkspace] = useState<Workspace>('hub');
+  const [quranWorkspaceIntent, setQuranWorkspaceIntent] = useState<QuranWorkspaceIntent>('ask');
   const [input, setInput] = useState('');
   const [language, setLanguage] = useState('sahih_international');
   const [loading, setLoading] = useState(false);
@@ -361,7 +365,7 @@ export default function QuranScreen() {
   const [keywordSearchWarning, setKeywordSearchWarning] = useState(false);
   const router = useRouter();
 
-  function resetAll() {
+  const resetAll = useCallback(() => {
     setAyahResult(null);
     setSearchResults(null);
     setError(null);
@@ -386,7 +390,32 @@ export default function QuranScreen() {
     setHadithResults(null);
     setFigureResult(null);
     setKeywordSearchWarning(false);
-  }
+  }, []);
+
+  const returnToHub = useCallback(() => {
+    Keyboard.dismiss();
+    resetAll();
+    setInput('');
+    setWorkspace('hub');
+  }, [resetAll]);
+
+  const openWorkspace = useCallback((nextMode: Mode, intent: QuranWorkspaceIntent = 'ask') => {
+    resetAll();
+    setInput('');
+    setMode(nextMode);
+    setQuranWorkspaceIntent(intent);
+    setWorkspace('workspace');
+  }, [resetAll]);
+
+  useFocusEffect(useCallback(() => {
+    if (workspace !== 'workspace') return undefined;
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      returnToHub();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [returnToHub, workspace]));
 
   async function handleAyahOrSearch(body: unknown) {
     const { data: { session } } = await supabase.auth.getSession();
@@ -594,13 +623,61 @@ export default function QuranScreen() {
   const confidenceMeta = answerConfidence ? CONFIDENCE_META[answerConfidence] : null;
   const currentCollectionLabel = HADITH_COLLECTIONS.find((c) => c.key === hadithCollection)?.label || 'All Collections';
 
+  if (workspace === 'hub') {
+    const hubTools = [
+      { title: 'Ask Quran', description: 'Ask a question and explore sourced Quran guidance.', icon: <HelpCircle size={21} color={colors.accent} />, onPress: () => openWorkspace('quran', 'ask') },
+      { title: 'Verse Lookup & Search', description: 'Find an ayah by reference or search its translation.', icon: <Search size={21} color={colors.accent} />, onPress: () => openWorkspace('quran', 'lookup') },
+      { title: 'Hadith Search', description: 'Search hadith collections by topic or keyword.', icon: <Library size={21} color={colors.accent} />, onPress: () => openWorkspace('hadith') },
+      { title: 'Continue Hifz', description: 'Resume your memorization practice and progress.', icon: <BookMarked size={21} color={colors.accent} />, onPress: () => router.push('/hifz') },
+      { title: 'Quran Quiz', description: 'Review what you know with focused Quran quizzes.', icon: <BarChart3 size={21} color={colors.accent} />, onPress: () => router.push('/quiz') },
+      { title: 'Today’s Verse & Dua', description: 'Read today’s reflection, verse, and verified dua.', icon: <Sparkles size={21} color={colors.accent} />, onPress: () => router.push('/today') },
+    ];
+
+    return (
+      <View style={[s.hubContainer, { backgroundColor: colors.bg }]}>
+        <Stack.Screen options={{ headerLeft: undefined }} />
+        <ScrollView contentContainerStyle={s.hubContent} showsVerticalScrollIndicator={false}>
+          <Text style={[t.body, s.hubIntro, { color: colors.textMuted }]}>Choose a Quran and learning tool to begin.</Text>
+          <View style={s.hubGrid}>
+            {hubTools.map((tool) => (
+              <Pressable
+                key={tool.title}
+                accessibilityRole="button"
+                accessibilityLabel={tool.title}
+                style={({ pressed }) => [s.hubCard, { backgroundColor: colors.composerBg, borderColor: colors.composerBorder }, pressed && { opacity: 0.72 }]}
+                onPress={tool.onPress}
+              >
+                <View style={[s.hubIcon, { backgroundColor: colors.overlaySubtle }]}>{tool.icon}</View>
+                <Text style={[t.bodyMedium, s.hubCardTitle, { color: colors.textPrimary }]}>{tool.title}</Text>
+                <Text style={[t.caption, s.hubCardDescription, { color: colors.textMuted }]}>{tool.description}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
+      <Stack.Screen options={{ headerLeft: () => (
+        <Pressable accessibilityRole="button" accessibilityLabel="All tools" style={s.headerBackButton} onPress={returnToHub}>
+          <ArrowLeft size={22} color={colors.textPrimary} />
+        </Pressable>
+      ) }} />
+      <Pressable
+        accessibilityRole="button"
+        style={({ pressed }) => [s.allToolsButton, { borderColor: colors.composerBorder }, pressed && { opacity: 0.72 }]}
+        onPress={returnToHub}
+      >
+        <ArrowLeft size={16} color={colors.accent} />
+        <Text style={[t.captionMedium, { color: colors.accent }]}>All tools</Text>
+      </Pressable>
       {/* ── Mode switcher ── */}
       <View style={[s.modeRow, { borderColor: colors.composerBorder, backgroundColor: colors.composerBg }]}>
         <Pressable
           style={[s.modeTab, mode === 'quran' && { backgroundColor: colors.accent }]}
-          onPress={() => { setMode('quran'); resetAll(); }}
+          onPress={() => { setMode('quran'); setQuranWorkspaceIntent('ask'); resetAll(); }}
         >
           <BookOpen size={14} color={mode === 'quran' ? '#fff' : colors.textMuted} />
           <Text style={[t.caption, { color: mode === 'quran' ? '#fff' : colors.textMuted }]}>Quran</Text>
@@ -611,27 +688,6 @@ export default function QuranScreen() {
         >
           <Library size={14} color={mode === 'hadith' ? '#fff' : colors.textMuted} />
           <Text style={[t.caption, { color: mode === 'hadith' ? '#fff' : colors.textMuted }]}>Hadith</Text>
-        </Pressable>
-        <Pressable
-          style={[s.modeTab, { backgroundColor: 'transparent' }]}
-          onPress={() => router.push('/hifz')}
-        >
-          <BookMarked size={14} color={colors.textMuted} />
-          <Text style={[t.caption, { color: colors.textMuted }]}>Hifz</Text>
-        </Pressable>
-        <Pressable
-          style={[s.modeTab, { backgroundColor: 'transparent' }]}
-          onPress={() => router.push('/quiz')}
-        >
-          <BarChart3 size={14} color={colors.textMuted} />
-          <Text style={[t.caption, { color: colors.textMuted }]}>Quiz</Text>
-        </Pressable>
-        <Pressable
-          style={[s.modeTab, { backgroundColor: 'transparent' }]}
-          onPress={() => router.push('/today')}
-        >
-          <Sparkles size={14} color={colors.textMuted} />
-          <Text style={[t.caption, { color: colors.textMuted }]}>Today</Text>
         </Pressable>
       </View>
 
@@ -646,7 +702,7 @@ export default function QuranScreen() {
         )}
         <TextInput
           style={[s.input, { color: colors.textPrimary }]}
-          placeholder={mode === 'hadith' ? "Search hadith (e.g. patience, charity)..." : "Verse (2:255), search, or ask..."}
+          placeholder={mode === 'hadith' ? "Search hadith (e.g. patience, charity)..." : quranWorkspaceIntent === 'lookup' ? "Verse (2:255) or search the Quran..." : "Ask about the Quran..."}
           placeholderTextColor={colors.textMuted}
           value={input}
           onChangeText={setInput}
@@ -1302,6 +1358,16 @@ export default function QuranScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, padding: 16 },
+  hubContainer: { flex: 1 },
+  hubContent: { padding: 16, paddingBottom: 24 },
+  hubIntro: { marginBottom: 14 },
+  hubGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  hubCard: { width: '48.5%', minHeight: 132, borderWidth: 1, borderRadius: radii.md, padding: 14 },
+  hubIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  hubCardTitle: { marginBottom: 4, lineHeight: 20 },
+  hubCardDescription: { lineHeight: 17 },
+  headerBackButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  allToolsButton: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, minHeight: 36, paddingHorizontal: 4, marginBottom: 6 },
   modeRow: {
     flexDirection: 'row', gap: 4,
     borderRadius: radii.sm, borderWidth: 1, padding: 3, marginBottom: 8,
