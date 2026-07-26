@@ -4,7 +4,6 @@ import {
   useColorScheme, Modal, FlatList, Keyboard,
 } from 'react-native';
 import { BookOpen, ChevronLeft, ChevronRight, CheckCircle, RotateCcw, Eye, EyeOff, Search, RefreshCw, Bookmark, Hash } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useColors, typography, radii, softShadow } from '../../lib/theme';
 import SURAHS from '../../lib/surahs';
@@ -53,7 +52,6 @@ export default function HifzScreen() {
   const colors = useColors();
   const scheme = useColorScheme();
   const t = typography(colors);
-  const router = useRouter();
 
   const [selectedSurah, setSelectedSurah] = useState<number | null>(null);
   const [currentAyah, setCurrentAyah] = useState(1);
@@ -291,13 +289,6 @@ export default function HifzScreen() {
   if (!selectedSurah) {
     return (
       <View style={[s.container, { backgroundColor: colors.bg }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <Text style={[t.title, { color: colors.textPrimary }]}>Hifz (Memorization)</Text>
-          <Pressable onPress={() => router.back()}>
-            <Text style={[t.caption, { color: colors.textMuted }]}>Back</Text>
-          </Pressable>
-        </View>
-
         <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.composerBorder }, softShadow()]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <BookOpen size={20} color={colors.accent} />
