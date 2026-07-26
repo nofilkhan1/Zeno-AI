@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log('[TTS] Calling Deepgram TTS API for text:', text.slice(0, 80));
+    console.log('[TTS] Calling Deepgram TTS API, textChars:', text.length);
 
     const dgRes = await fetch('https://api.deepgram.com/v1/speak?model=aura-orion-en', {
       method: 'POST',
@@ -52,9 +52,8 @@ Deno.serve(async (req) => {
     console.log('[TTS] Deepgram response status:', dgRes.status);
 
     if (!dgRes.ok) {
-      const body = await dgRes.text().catch(() => '');
-      console.error('[TTS] Deepgram error body:', body);
-      throw new Error(`Deepgram TTS error ${dgRes.status}: ${body}`);
+      console.error('[TTS] Deepgram error status:', dgRes.status);
+      throw new Error(`Deepgram TTS error ${dgRes.status}`);
     }
 
     const audioBuf = await dgRes.arrayBuffer();

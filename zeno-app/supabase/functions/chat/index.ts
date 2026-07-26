@@ -225,7 +225,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
-    console.log(`[${requestId}] user=${user.id} chat=${chatId} searchRequested=${searchRequested === true} modelOverride=${modelOverride || 'none'} message="${message.slice(0, 80)}"`);
+    console.log(`[${requestId}] user=${user.id} chat=${chatId} searchRequested=${searchRequested === true} modelOverride=${modelOverride || 'none'} messageChars=${String(message).length}`);
 
     const { allowed, retryAfter } = checkRateLimit(user.id);
     if (!allowed) {
