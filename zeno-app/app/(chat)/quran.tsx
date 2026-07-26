@@ -504,6 +504,8 @@ export default function QuranScreen() {
           const data = await handleQuestion(trimmed);
           if (data.noResults) {
             setNoResults(true);
+          } else if (data.isFigureResponse && data.figure) {
+            setFigureResult(data.figure as FigureInfo);
           } else {
             setAnswer(data.answer);
             setAnswerConfidence((data.confidence as ConfidenceLevel) || 'red');
@@ -536,6 +538,8 @@ export default function QuranScreen() {
           const data = await handleQuestion(trimmed);
           if (data.noResults) {
             setNoResults(true);
+          } else if (data.isFigureResponse && data.figure) {
+            setFigureResult(data.figure as FigureInfo);
           } else {
             setAnswer(data.answer);
             setAnswerConfidence((data.confidence as ConfidenceLevel) || 'red');
@@ -716,12 +720,12 @@ export default function QuranScreen() {
 
       <ScrollView style={s.results} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         {/* ══════════════ FIGURE RESULT (CURATED) ══════════════ */}
-        {mode === 'hadith' && figureResult && (
+        {figureResult && (
           <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.accent }]}>
             <View style={[s.resultHeader, { marginBottom: 8 }]}>
               <HelpCircle size={16} color={colors.accent} />
               <Text style={[t.captionMedium, { color: colors.accent, marginLeft: 8, flex: 1 }]}>
-                Who is {figureResult.name}
+                {figureResult.name}
               </Text>
             </View>
             <Text style={[t.body, { color: colors.textPrimary, lineHeight: 22, marginBottom: 12 }]}>

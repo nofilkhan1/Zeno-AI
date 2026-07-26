@@ -154,6 +154,302 @@ function detectSurahQuery(question: string): number | null {
   return null;
 }
 
+// === KNOWN FIGURES CURATED DATA ===
+type FigureInfo = {
+  name: string;
+  description: string;
+  knownFor: string;
+  quranMention?: string;
+  hadithRef?: string;
+};
+
+const KNOWN_FIGURES: Record<string, FigureInfo> = {
+  'muhammad': {
+    name: 'Muhammad (ﷺ)',
+    description: 'The final prophet and messenger of Allah, sent to all of humanity as a mercy to the worlds.',
+    knownFor: 'Final messenger of Allah, Quran revealed to him, completed the religion of Islam',
+    quranMention: 'Mentioned by name 4 times in the Quran; also referred to as "the Messenger", "the Prophet", "Ahmad"',
+    hadithRef: 'Sahih al-Bukhari and Sahih Muslim are the most authentic collections of his sayings and actions',
+  },
+  'adam': {
+    name: 'Adam (عليه السلام)',
+    description: 'The first human being and first prophet of Allah, created from clay and given knowledge of all things.',
+    knownFor: 'First human, first prophet, father of humanity',
+    quranMention: 'Surah Al-Baqarah (2:30-38), Surah Al-A\'raf (7:11-25), Surah Ta-Ha (20:115-123)',
+    hadithRef: 'Sahih al-Bukhari 3409 - Prophet ﷺ said: "Allah created Adam in His image"',
+  },
+  'ibrahim': {
+    name: 'Ibrahim (عليه السلام)',
+    description: 'Prophet Ibrahim (Abraham) — the patriarch of monotheism, known as Khalilullah (Friend of Allah). He built the Kaaba with his son Ismail.',
+    knownFor: 'Father of monotheism, built the Kaaba, offered his son in obedience to Allah',
+    quranMention: 'Mentioned in 25+ surahs; Surah Ibrahim (14), Surah Al-Baqarah 2:124-141',
+    hadithRef: 'Sahih al-Bukhari 3364 - Prophet ﷺ said: "Ibrahim was the most truthful person"',
+  },
+  'musa': {
+    name: 'Musa (عليه السلام)',
+    description: 'Prophet Musa (Moses) — the most mentioned prophet in the Quran, given the Torah and sent to Pharaoh and Bani Israel.',
+    knownFor: 'Received the Torah, split the sea, spoke directly to Allah',
+    quranMention: 'Mentioned in 30+ surahs; Surah Al-Qasas (28), Surah Ta-Ha (20), Surah Al-A\'raf (7:103-162)',
+  },
+  'isa': {
+    name: 'Isa (عليه السلام)',
+    description: 'Prophet Isa (Jesus) — a mighty messenger of Allah, born miraculously to Maryam (Mary), given the Injeel (Gospel), and will return before the Day of Judgment.',
+    knownFor: 'Born without a father, spoke in the cradle, raised the dead by Allah\'s permission, will return as a just ruler',
+    quranMention: 'Mentioned in 10+ surahs; Surah Maryam (19:16-36), Surah Aal-e-Imran (3:45-59), Surah An-Nisa (4:157-159)',
+    hadithRef: 'Sahih al-Bukhari 3448 - Prophet ﷺ said: "Isa will descend among you as a just ruler"',
+  },
+  'yusuf': {
+    name: 'Yusuf (عليه السلام)',
+    description: 'Prophet Yusuf (Joseph) — known for his beauty, patience, and forgiveness. A full surah (Surah Yusuf, 12) is named after his story.',
+    knownFor: 'Interpretation of dreams, resisted temptation, forgave his brothers',
+    quranMention: 'Surah Yusuf (12) — the longest continuous story in the Quran',
+  },
+  'nuh': {
+    name: 'Nuh (عليه السلام)',
+    description: 'Prophet Nuh (Noah) — called his people for 950 years, built the ark by Allah\'s command, and was saved with the believers from the great flood.',
+    knownFor: 'Built the ark, called his people for 950 years, survived the great flood',
+    quranMention: 'Surah Nuh (71), Surah Hud (11:25-49), Surah Al-Ankabut (29:14-15)',
+  },
+  'yunus': {
+    name: 'Yunus (عليه السلام)',
+    description: 'Prophet Yunus (Jonah) — swallowed by a great fish when he left his people in anger, then glorified Allah from the darkness.',
+    knownFor: 'Swallowed by a whale, his prayer from the darkness, his people accepted after he left',
+    quranMention: 'Surah Yunus (10), Surah Al-Anbiya (21:87-88), Surah As-Saffat (37:139-148)',
+  },
+  'maryam': {
+    name: 'Maryam (Mary, عليها السلام)',
+    description: 'Maryam bint Imran — the mother of Prophet Isa (Jesus), the most virtuous woman in Paradise. A full surah (Surah Maryam, 19) is named after her.',
+    knownFor: 'Mother of Prophet Isa, chaste and devout, received provision from Allah in the mihrab',
+    quranMention: 'Surah Maryam (19), Surah Aal-e-Imran (3:35-47) — a full surah named after her',
+    hadithRef: 'Sahih al-Bukhari 3432 - "The best of women among the people of Paradise are Maryam bint Imran"',
+  },
+  'fatima': {
+    name: 'Fatimah (رضي الله عنها)',
+    description: 'Fatimah bint Muhammad — the youngest daughter of the Prophet ﷺ and Khadijah (RA), wife of Ali (RA), mother of Hasan and Husayn (RA). She is the leader of the women of Paradise.',
+    knownFor: 'Daughter of Prophet ﷺ, wife of Ali, mother of Hasan and Husayn, leader of women of Paradise',
+    quranMention: 'Interpretive reference: Quran 33:33 is understood by many scholars to include the Ahl al-Bayt (the Prophet\'s household)',
+  },
+  'khadijah': {
+    name: 'Khadijah (رضي الله عنها)',
+    description: 'Khadijah bint Khuwaylid — the first wife of Prophet ﷺ, the first person to accept Islam, and his greatest supporter. She was a wealthy businesswoman and a woman of noble character.',
+    knownFor: 'First wife of Prophet ﷺ, first Muslim, mother of Fatimah (RA), supported the Prophet during the early revelation',
+    quranMention: 'Interpretive reference: Quran 93 is understood by some scholars to refer to the consolation the Prophet received after her passing',
+  },
+  'aisha': {
+    name: 'Aisha (رضي عنها)',
+    description: 'Aisha bint Abu Bakr — the wife of Prophet ﷺ, known as Umm al-Mu\'mineen (Mother of the Believers). She was a scholar, narrator of thousands of hadith, and a leader in Islamic jurisprudence.',
+    knownFor: 'Wife of Prophet ﷺ, narrated over 2,200 hadith, expert in fiqh and tafsir',
+    quranMention: 'Interpretive reference: Quran 24:11-20 is understood by many scholars to refer to the incident of slander against her',
+  },
+  'abu_bakr': {
+    name: 'Abu Bakr (رضي الله عنه)',
+    description: 'Abu Bakr as-Siddiq — the first adult male to accept Islam, closest companion of Prophet ﷺ, first caliph of Islam. Known for his unwavering faith and generosity.',
+    knownFor: 'First caliph, companion of the cave, father of Aisha (RA), freed Bilal (RA)',
+    quranMention: 'Interpretive reference: Quran 9:40 is understood by scholars to refer to Abu Bakr as "the second of the two when they were in the cave"',
+    hadithRef: 'Sahih al-Bukhari 3660 - "If I were to take a close friend, I would take Abu Bakr"',
+  },
+  'umar': {
+    name: 'Umar ibn al-Khattab (رضي الله عنه)',
+    description: 'Umar al-Farooq — the second caliph of Islam, known for his strength, justice, and wisdom. His acceptance of Islam strengthened the Muslim community immensely.',
+    knownFor: 'Second caliph, known as al-Farooq (the distinguisher), expanded the Islamic state, established the Hijri calendar',
+    quranMention: 'Interpretive reference: Quran 8:30 is understood by some scholars to reference his role',
+  },
+  'uthman': {
+    name: 'Uthman ibn Affan (رضي الله عنه)',
+    description: 'Uthman Dhun-Nurayn — the third caliph, known for his modesty, generosity, and compiling the standard Quranic text.',
+    knownFor: 'Third caliph, compiled the Quran into one book, married to two daughters of Prophet ﷺ',
+    quranMention: 'Interpretive reference: general verses about charity are understood by some scholars to reference his generosity',
+    hadithRef: 'Sahih al-Bukhari 3695 - "Every prophet has a companion in Paradise, and my companion there will be Uthman"',
+  },
+  'ali': {
+    name: 'Ali ibn Abi Talib (رضي الله عنه)',
+    description: 'Ali — the cousin and son-in-law of Prophet ﷺ, fourth caliph, known for his bravery, knowledge, and eloquence. He grew up in the Prophet\'s household and was among the first to accept Islam.',
+    knownFor: 'Fourth caliph, husband of Fatimah (RA), father of Hasan and Husayn, famously brave warrior',
+    quranMention: 'Interpretive reference: Quran 5:55 and 66:4 are understood by many scholars to reference events involving him',
+  },
+  'hasan': {
+    name: 'Hasan ibn Ali (رضي الله عنه)',
+    description: 'Hasan — the grandson of Prophet ﷺ, son of Ali and Fatimah (RA). He was a caliph for a short period and abdicated to preserve Muslim unity.',
+    knownFor: 'Grandson of Prophet ﷺ, abdicated caliphate to preserve unity, leader of the youth of Paradise',
+    quranMention: 'Interpretive reference: Quran 33:33 is understood by many scholars to include the Ahl al-Bayt',
+  },
+  'husayn': {
+    name: 'Husayn ibn Ali (رضي الله عنه)',
+    description: 'Husayn — the grandson of Prophet ﷺ, son of Ali and Fatimah (RA). He was martyred at Karbala and is deeply revered by Muslims.',
+    knownFor: 'Grandson of Prophet ﷺ, martyred at Karbala, known for his stand against injustice',
+    quranMention: 'Interpretive reference: Quran 33:33 is understood by many scholars to include the Ahl al-Bayt',
+  },
+  'bilal': {
+    name: 'Bilal ibn Rabah (رضي الله عنه)',
+    description: 'Bilal — an Ethiopian companion, the first muezzin (caller to prayer) in Islam. He was a slave freed by Abu Bakr (RA) and was known for his beautiful voice.',
+    knownFor: 'First muezzin of Islam, freed by Abu Bakr (RA), steadfast under persecution in Mecca',
+    quranMention: 'Interpretive reference: Quran 49:13 is understood by many scholars to reference the principle of righteousness over lineage',
+  },
+};
+
+const FIGURE_ALIASES: Record<string, string> = {
+  'mohammad': 'muhammad', 'mohammed': 'muhammad', 'ahmad': 'muhammad',
+  'mustafa': 'muhammad', 'rasulullah': 'muhammad', 'rasoolallah': 'muhammad',
+  'abraham': 'ibrahim',
+  'moses': 'musa', 'moosa': 'musa',
+  'jesus': 'isa', 'christ': 'isa',
+  'joseph': 'yusuf',
+  'noah': 'nuh',
+  'jonah': 'yunus', 'jonas': 'yunus',
+  'mary': 'maryam',
+  'fatimah': 'fatima',
+  'khadija': 'khadijah',
+  'ayesha': 'aisha', 'aishah': 'aisha', 'aaisyah': 'aisha',
+  'abubakr': 'abu_bakr', 'abu bakr': 'abu_bakr', 'abu baker': 'abu_bakr', 'siddiq': 'abu_bakr',
+  'usman': 'uthman', 'uthman ibn affan': 'uthman',
+  'ali ibn abi talib': 'ali',
+  'hassan': 'hasan', 'hasan ibn ali': 'hasan',
+  'hussain': 'husayn', 'husayn ibn ali': 'husayn',
+  'bilal ibn rabah': 'bilal', 'bilal habashi': 'bilal',
+};
+
+const HONORIFICS = /^(hazrat|imam|saint|prophet|sayyidina|syedina|syed|moulana|maulana|sheikh|shaykh|hadhrat|janab|sahabi|radiAllahu)\s+/i;
+
+function normalizeName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// Detect if the question asks about a KNOWN_FIGURES entry
+function detectFigure(question: string): FigureInfo | null {
+  const lower = question.toLowerCase().trim();
+  if (!lower || lower.length < 3) return null;
+
+  // 1. Exact "who is/was X" pattern
+  const whoMatch = lower.match(/^(who)\s+(is|was)\s+(.+)$/i);
+  if (whoMatch) {
+    const name = normalizeName(whoMatch[3]).replace(HONORIFICS, '');
+    const candidates = [name, ...name.split(/\s+/)];
+    for (const c of candidates) {
+      if (KNOWN_FIGURES[c]) return KNOWN_FIGURES[c];
+      if (FIGURE_ALIASES[c]) {
+        const canon = FIGURE_ALIASES[c];
+        if (KNOWN_FIGURES[canon]) return KNOWN_FIGURES[canon];
+      }
+    }
+  }
+
+  // 2. Broader pattern: "tell me about X", "X in islam", "X in the quran"
+  const tellMatch = lower.match(/^(?:tell me about|tell about|about)\s+(.+)$/i);
+  if (tellMatch) {
+    const name = normalizeName(tellMatch[1]).replace(HONORIFICS, '');
+    const candidates = [name, ...name.split(/\s+/)];
+    for (const c of candidates) {
+      if (KNOWN_FIGURES[c]) return KNOWN_FIGURES[c];
+      if (FIGURE_ALIASES[c]) {
+        const canon = FIGURE_ALIASES[c];
+        if (KNOWN_FIGURES[canon]) return KNOWN_FIGURES[canon];
+      }
+    }
+  }
+
+  // 3. Check if any figure name/alias appears as a standalone content word
+  // Used for queries like "fatima in islam", "who was aisha"
+  const words = lower.replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 1);
+  const stopwords = new Set(['the', 'is', 'was', 'a', 'an', 'in', 'of', 'to', 'and', 'or', 'for', 'on', 'at', 'by', 'with', 'from', 'as', 'are', 'do', 'does', 'did', 'has', 'have', 'had', 'can', 'could', 'will', 'would', 'should', 'may', 'might', 'it', 'its', 'they', 'them', 'their', 'we', 'our', 'you', 'your', 'he', 'she', 'him', 'her', 'his', 'who', 'tell', 'about', 'what', 'that', 'this', 'these', 'those']);
+  const contentWords = words.filter(w => !stopwords.has(w));
+  if (contentWords.length === 0) return null;
+
+  // Check multi-word keys (e.g. "abu_bakr")
+  for (const [key, figure] of Object.entries(KNOWN_FIGURES)) {
+    if (key.includes('_')) {
+      const spacedKey = key.replace(/_/g, ' ');
+      // Only match if the spaced key is a significant part of the query
+      if (lower.includes(spacedKey)) return figure;
+    }
+  }
+
+  // Check single-word keys and aliases
+  for (let i = 0; i < contentWords.length; i++) {
+    const w = contentWords[i];
+    if (KNOWN_FIGURES[w]) {
+      // Heuristic: figure name should be early (first 4) OR late (last 4)
+      // OR the query is very short (<=4 content words)
+      if (contentWords.length <= 4 || i <= 3 || i >= contentWords.length - 4) {
+        return KNOWN_FIGURES[w];
+      }
+    }
+    if (FIGURE_ALIASES[w]) {
+      const canon = FIGURE_ALIASES[w];
+      const figure = KNOWN_FIGURES[canon];
+      if (figure) {
+        if (contentWords.length <= 4 || i <= 3 || i >= contentWords.length - 4) {
+          return figure;
+        }
+      }
+    }
+  }
+
+  // Check multi-word aliases (e.g. "abu bakr")
+  for (const [alias, canonKey] of Object.entries(FIGURE_ALIASES)) {
+    if (alias.includes(' ') && lower.includes(alias)) {
+      const figure = KNOWN_FIGURES[canonKey];
+      if (figure) return figure;
+    }
+  }
+
+  return null;
+}
+
+// Detect if a question is asking about a person (for confidence capping)
+function isPersonQuestion(question: string): boolean {
+  const lower = question.toLowerCase().trim();
+  const whoMatch = lower.match(/^(who)\s+(is|was)\s+(.+)$/i);
+  if (whoMatch) {
+    const name = normalizeName(whoMatch[3]).replace(HONORIFICS, '');
+    const nonPersonIndicators = new Set(['this', 'that', 'he', 'she', 'they', 'the best', 'your', 'the quran', 'the meaning', 'the purpose', 'the difference', 'the most', 'the greatest', 'the strongest']);
+    if (name && name.length > 1 && !nonPersonIndicators.has(name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Build response for a matched figure (NO LLM, NO retrieval)
+function buildFigureResponse(figure: FigureInfo): object {
+  const parts: string[] = [];
+  parts.push(figure.name);
+  parts.push('');
+  parts.push(figure.description);
+  parts.push('');
+  parts.push(`Known for: ${figure.knownFor}`);
+
+  if (figure.quranMention) {
+    parts.push('');
+    parts.push(`Quran mention: ${figure.quranMention}`);
+  }
+
+  if (figure.hadithRef) {
+    parts.push('');
+    parts.push(`Hadith reference: ${figure.hadithRef}`);
+  }
+
+  const confidence = figure.hadithRef ? 'green' : 'yellow';
+
+  return {
+    answer: parts.join('\n'),
+    error: null,
+    noResults: false,
+    isFigureResponse: true,
+    figure: {
+      name: figure.name,
+      description: figure.description,
+      knownFor: figure.knownFor,
+      quranMention: figure.quranMention || null,
+      hadithRef: figure.hadithRef || null,
+    },
+    quranVerses: [],
+    hadiths: [],
+    tafsir: null,
+    confidence,
+  };
+}
+// === END KNOWN FIGURES ===
+
 // Fetch a complete surah from UmmahAPI
 async function fetchSurahDirect(
   surahNumber: number,
@@ -400,6 +696,19 @@ Deno.serve(async (req) => {
 
     console.log(`[Quran-Answer] question="${question}" user=${user.id}`);
 
+    // === FIGURE DETECTION (short-circuits before any retrieval/LLM) ===
+    const matchedFigure = detectFigure(question);
+    if (matchedFigure) {
+      console.log(`[Quran-Answer] matched known figure: ${matchedFigure.name}`);
+      return new Response(JSON.stringify(buildFigureResponse(matchedFigure)), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const isUncuratedPersonQuery = isPersonQuestion(question);
+    if (isUncuratedPersonQuery) {
+      console.log(`[Quran-Answer] uncurated person query — confidence will be capped at yellow`);
+    }
+
     const keywords = extractKeywords(question);
     console.log(`[Quran-Answer] extracted keywords="${keywords.join(', ')}"`);
 
@@ -643,6 +952,10 @@ At the end of your response, on its own line, add one of these confidence indica
     const confidenceMatch = result.content.match(/\[CONFIDENCE:\s*(green|yellow|orange|red)\]/i);
     if (confidenceMatch) {
       confidence = confidenceMatch[1].toLowerCase();
+    }
+    // Cap confidence for uncurated person queries (never green for unverified figures)
+    if (isUncuratedPersonQuery && confidence === 'green') {
+      confidence = 'yellow';
     }
     const cleanAnswer = result.content.replace(/\[CONFIDENCE:\s*(green|yellow|orange|red)\]/gi, '').trim();
 
