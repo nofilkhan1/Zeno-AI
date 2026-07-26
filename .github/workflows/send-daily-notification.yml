@@ -12,8 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call send-daily-notification edge function
+        shell: bash
         run: |
-          curl -s -X POST "${{ secrets.SUPABASE_FUNCTION_URL }}/send-daily-notification" \
+          RESPONSE=$(curl -sS -X POST "${{ secrets.SUPABASE_FUNCTION_URL }}/send-daily-notification" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "Content-Type: application/json" \
-            -d '{}'
+            -d '{}' 2>&1)
+          echo "Response: $RESPONSE"
+          if echo "$RESPONSE" | grep -qi "UNAUTHORIZED\|error"; then
+            echo "::error::Notification API call failed: $RESPONSE"
+            exit 1
+          fi
