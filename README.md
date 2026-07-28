@@ -77,15 +77,15 @@ Zeno brings everyday AI chat and focused Quran learning into one calm, mobile-fi
 ## Architecture
 
 ```mermaid
-flowchart LR
-  App["Zeno mobile app"] --> Auth["Supabase Auth"]
-  App --> DB["Supabase Postgres + RLS"]
-  App --> Fn["Supabase Edge Functions"]
-  Fn --> NIM["NVIDIA NIM"]
-  Fn --> Ummah["UmmahAPI"]
-  Fn --> Deepgram["Deepgram"]
-  Fn --> Tavily["Tavily"]
-  Fn --> Push["Expo Push"]
+graph LR
+  A[Zeno App] --> B[Supabase Auth]
+  A --> C[Supabase Database]
+  A --> D[Edge Functions]
+  D --> E[NVIDIA NIM]
+  D --> F[Ummah API]
+  D --> G[Deepgram]
+  D --> H[Tavily]
+  D --> I[Expo Push]
 ```
 
 The application keeps third-party API keys on the server. The device authenticates with Supabase, and Edge Functions validate the user before calling external providers.
@@ -239,4 +239,3 @@ Before a release, verify:
 ## License
 
 See [LICENSE](zeno-app/LICENSE).
-

@@ -11,15 +11,15 @@ The system has one central safety rule: Quran Arabic, translations, Hadith, Dua,
 ## Architecture overview
 
 ```mermaid
-flowchart LR
-  App["Expo / React Native app"] --> Auth["Supabase Auth"]
-  App --> DB["Supabase Postgres + RLS"]
-  App --> Fn["Supabase Edge Functions"]
-  Fn --> NIM["NVIDIA NIM\nchat + embeddings"]
-  Fn --> Ummah["UmmahAPI\nQuran/Hadith/Dua/Tafsir/Audio"]
-  Fn --> Deepgram["Deepgram\nSTT + TTS"]
-  Fn --> Tavily["Tavily web search"]
-  Fn --> Push["Expo Push"]
+graph LR
+  A[Zeno App] --> B[Supabase Auth]
+  A --> C[Supabase Database]
+  A --> D[Edge Functions]
+  D --> E[NVIDIA NIM]
+  D --> F[Ummah API]
+  D --> G[Deepgram]
+  D --> H[Tavily]
+  D --> I[Expo Push]
 ```
 
 The mobile app uses only public Supabase configuration and the user’s session token. Provider keys and the Supabase service-role key remain in the Edge Function environment. Each server function validates the user JWT before it acts with server privileges.
@@ -331,4 +331,3 @@ Then test on a real device:
 | Live captions | `components/VoiceMode.tsx` | `speech-token` |
 | TTS stutter | `lib/tts.ts` | `tts`, `VoiceMode`, `MessageBubble` |
 | Quran recitation | `QuranAudioPlayer.tsx` | `lib/audio.ts`, `quran-audio` |
-

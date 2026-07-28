@@ -11,16 +11,16 @@ The most important content rule is that Quran, Hadith, Dua, tafsir, and Quran au
 ## 2. High-level architecture
 
 ```mermaid
-flowchart TB
-  User["Mobile user"] --> Expo["Expo / React Native client"]
-  Expo --> Auth["Supabase Auth"]
-  Expo --> DB["Supabase Postgres + RLS"]
-  Expo --> Edge["Supabase Edge Functions"]
-  Edge --> NIM["NVIDIA NIM\nchat + embeddings"]
-  Edge --> Ummah["UmmahAPI\nQuran, Hadith, Dua, Tafsir, Audio"]
-  Edge --> Deepgram["Deepgram\nSTT + TTS"]
-  Edge --> Tavily["Tavily\noptional web search"]
-  Edge --> ExpoPush["Expo Push service"]
+graph TB
+  A[Mobile User] --> B[Zeno App]
+  B --> C[Supabase Auth]
+  B --> D[Supabase Database]
+  B --> E[Edge Functions]
+  E --> F[NVIDIA NIM]
+  E --> G[Ummah API]
+  E --> H[Deepgram]
+  E --> I[Tavily]
+  E --> J[Expo Push]
 ```
 
 The mobile client never contains provider secrets. It authenticates as a Supabase user and calls Edge Functions, which validate that user before using server-side provider keys.
@@ -350,4 +350,3 @@ Never commit production secrets or put server-only keys in an `EXPO_PUBLIC_*` va
 - Treat voice, audio, and notifications as lifecycle-sensitive: test on a real device after changes.
 - Add a migration and RLS policy whenever persistent user data is introduced.
 - Prefer a focused feature phase over broad simultaneous refactors.
-
