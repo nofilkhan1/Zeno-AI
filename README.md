@@ -185,7 +185,7 @@ User-owned tables use Row Level Security so users can only access their own data
 │   ├── scripts/                # Quran import and embedding helpers
 │   └── package.json
 ├── docs/screenshots/           # README screenshots
-└── ZENO_COMPLETE_TECHNICAL_REFERENCE.md
+└── ARCHITECTURE.md              # System and Quran GPT architecture
 ```
 
 ## Key server functions
@@ -233,7 +233,7 @@ Before a release, verify:
 
 ## Documentation
 
-- [Complete technical reference](ZENO_COMPLETE_TECHNICAL_REFERENCE.md)
+- [Architecture and Quran GPT guide](ARCHITECTURE.md)
 - [In-app architecture guide](zeno-app/ARCHITECTURE.md)
 
 ## License

@@ -235,9 +235,22 @@ Voice Mode streams 16 kHz mono PCM audio through the authenticated `speech-token
 6. Treat voice/audio and notifications as real-device-tested features.
 7. Keep diagnostics privacy-safe: state, timing, counts, and error codes—not tokens, audio, full transcripts, or full model responses.
 
+## Where changes belong
+
+| Change | Primary file | Also inspect |
+| --- | --- | --- |
+| Navigation or native headers | `app/(chat)/_layout.tsx` | `Sidebar.tsx` and Android Back behaviour |
+| General chat sending | `app/(chat)/index.tsx` | `supabase/functions/chat/index.ts` |
+| Quran workspace or result UI | `app/(chat)/quran.tsx` | Relevant Quran Edge Function |
+| Quran Arabic presentation | `components/QuranAyahText.tsx` | Every Quran display consumer |
+| Hifz state | `app/(chat)/hifz.tsx` | `memorization-progress` and its migration |
+| Quiz behaviour | `app/(chat)/quiz.tsx` | `quran-quiz` |
+| Daily notifications | `app/(chat)/settings.tsx` | `lib/notifications.ts` and `send-daily-notification` |
+| Live captions | `components/VoiceMode.tsx` | `speech-token` WebSocket proxy |
+| Spoken response playback | `lib/tts.ts` | `tts`, `VoiceMode`, and `MessageBubble` |
+| Quran recitation playback | `components/QuranAudioPlayer.tsx` | `lib/audio.ts` and `quran-audio` |
+
 ## Further documentation
 
 - [Project README](README.md)
-- [Complete technical reference](ZENO_COMPLETE_TECHNICAL_REFERENCE.md)
 - [In-project implementation guide](zeno-app/ARCHITECTURE.md)
-
