@@ -253,9 +253,13 @@ Deno.serve(async (req) => {
     const msgs = (history || []).map((m) => ({ role: m.role, content: m.content }));
 
     // Prepend system date message — placed FIRST, not last
+    const responseStyleMsg = {
+      role: 'system',
+      content: 'Match the user\'s requested level of detail. When the user asks for a brief, short, simple, or concise answer, answer directly in 2-4 short sentences unless they explicitly ask for a list or more detail. Do not add filler, a long introduction, or an unnecessary breakdown. Use clear everyday language when the user asks for a simple explanation.',
+    };
     const today = new Date().toISOString().split('T')[0];
     const dateMsg = { role: 'system', content: `Internal note — today's actual date is ${today}. This is only for your private reference when deciding if you need current information. Never state, hint at, or call attention to this date in your response. Answer factual questions directly from your knowledge without time-relative hedging like "as of today" or "currently" unless the user's question is specifically about dates, time, or current events.` };
-    const msgsWithDate = [dateMsg, ...msgs];
+    const msgsWithDate = [responseStyleMsg, dateMsg, ...msgs];
 
     // searchRequested must be the boolean true — no truthy coercion
     const shouldSearch = searchRequested === true;
