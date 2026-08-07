@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { View, Text, StyleSheet, Linking, Pressable, Modal, Image, Dimensions, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Source } from '../lib/types';
@@ -34,6 +34,36 @@ function parseCitations(content: string): Segment[] {
     parts.push({ type: 'text', text: content.slice(lastIndex) });
   }
   return parts.length > 0 ? parts : [{ type: 'text', text: content }];
+}
+
+function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode[] {
+  const tokens = /(\*\*[\s\S]+?\*\*|__[\s\S]+?__|`[^`\n]+`|\*[^*\n]+?\*)/g;
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let index = 0;
+
+  while ((match = tokens.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+
+    const token = match[0];
+    const key = `${keyPrefix}-${index++}`;
+    if ((token.startsWith('**') && token.endsWith('**')) || (token.startsWith('__') && token.endsWith('__'))) {
+      nodes.push(<Text key={key} style={sr.boldText}>{token.slice(2, -2)}</Text>);
+    } else if (token.startsWith('`') && token.endsWith('`')) {
+      nodes.push(<Text key={key} style={sr.codeText}>{token.slice(1, -1)}</Text>);
+    } else {
+      nodes.push(<Text key={key} style={sr.italicText}>{token.slice(1, -1)}</Text>);
+    }
+    lastIndex = tokens.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+  return nodes.length ? nodes : [text];
 }
 
 function extractDomain(url: string): string {
@@ -158,7 +188,7 @@ export default function MessageBubble({ role, content, sources, answeredByModel,
               </Text>
             );
           }
-          return <Text key={i}>{seg.type === 'text' ? seg.text : `[${(seg as any).index}]`}</Text>;
+          return <Text key={i}>{seg.type === 'text' ? renderInlineMarkdown(seg.text, `text-${i}`) : `[${(seg as any).index}]`}</Text>;
         })}
       </Text>
 
@@ -242,6 +272,9 @@ const sr = StyleSheet.create({
   userBubble: { maxWidth: '80%', borderRadius: radii.md, borderBottomRightRadius: 4, paddingHorizontal: 16, paddingVertical: 12 },
   assistantContainer: { paddingHorizontal: 16, marginVertical: 8 },
   citationMark: { fontSize: 12, lineHeight: 16, fontFamily: 'Inter_500Medium', marginLeft: 1 },
+  boldText: { fontFamily: 'Inter_700Bold' },
+  italicText: { fontStyle: 'italic' },
+  codeText: { fontFamily: 'Inter_500Medium' },
   answeredBy: { fontSize: 13, marginTop: 8, fontStyle: 'italic', fontFamily: 'Inter_400Regular' },
   webSearchBadge: { alignSelf: 'flex-start', marginTop: 8, borderRadius: radii.sm, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { fontSize: 12, fontFamily: 'Inter_500Medium' },

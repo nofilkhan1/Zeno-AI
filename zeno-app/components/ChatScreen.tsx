@@ -197,6 +197,6 @@ const s = StyleSheet.create({
   list: { paddingTop: 8, paddingBottom: 8 },
   listEmpty: { flexGrow: 1, justifyContent: 'center' },
   empty: { alignItems: 'center', paddingHorizontal: 24 },
-  scrollToBottom: { position: 'absolute', bottom: 8, alignSelf: 'center', zIndex: 50 },
+  scrollToBottom: { position: 'absolute', bottom: 92, alignSelf: 'center', zIndex: 50 },
   scrollBtnInner: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
 });
