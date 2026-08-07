@@ -194,7 +194,8 @@ const s = StyleSheet.create({
   errorDismiss: { padding: 8 },
   thinkingBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: radii.sm, borderWidth: 1 },
   thinkingText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
-  list: { paddingTop: 8, paddingBottom: 8 },
+  // Keep the final message clear of the composer and the scroll control.
+  list: { paddingTop: 8, paddingBottom: 128 },
   listEmpty: { flexGrow: 1, justifyContent: 'center' },
   empty: { alignItems: 'center', paddingHorizontal: 24 },
   scrollToBottom: { position: 'absolute', bottom: 92, alignSelf: 'center', zIndex: 50 },
